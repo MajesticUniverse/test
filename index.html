@@ -200,7 +200,7 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    <audio id="audio-player" preload="metadata" playsinline webkit-playsinline crossorigin="anonymous"></audio>
     
     <script>
         // ===========================
@@ -224,10 +224,14 @@
                     this.srcNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
                     return true;
-                } catch (e) { console.error('Web Audio error:', e); return false; }
+                } catch (e) { 
+                    console.warn('Visualizer init failed (CORS likely blocked):', e); 
+                    return false; 
+                }
             },
             draw() {
                 const c = document.getElementById('viz-canvas');
+                if (!c) return;
                 const ctx = this.ctx || c.getContext('2d');
                 this.ctx = ctx;
                 const dpr = window.devicePixelRatio || 1;
@@ -426,24 +430,52 @@
                 img.src = artUrl;
             } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
         }
+        
+        // === МОБИЛЬНО-ОПТИМИЗИРОВАННЫЙ ЗАПУСК ===
         function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`); playbackStarted = false;
+            console.log(`🎵 Playing: ${station.stream}`);
+            
+            // 1. Инициализация AudioContext внутри жеста пользователя (критично для iOS/Android)
+            if (!_cViz.audioCtx) {
+                const ok = _cViz.init(audio);
+                if (!ok) console.warn('Визуализатор не инициализирован (CORS), но радио будет играть.');
+            }
+            if (_cViz.audioCtx && _cViz.audioCtx.state === 'suspended') {
+                _cViz.audioCtx.resume().catch(() => {});
+            }
+
+            playbackStarted = false;
             audio.src = `${station.stream}?t=${Date.now()}`;
-            setTimeout(async () => {
-                try {
-                    if (!_cViz.audioCtx) _cViz.init(audio);
-                    if (_cViz.audioCtx.state === 'suspended') await _cViz.audioCtx.resume();
-                    await audio.play();
-                    console.log('✅ Playback started');
-                    isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); _cViz.start(); updateStatus(true);
+            audio.muted = false; // Фикс для iOS, где аудио иногда создаётся muted
+            audio.volume = 1.0;
+            audio.load(); // Принудительно готовим поток для мобильных браузеров
+
+            // 2. Синхронный вызов play() без setTimeout (сохраняет контекст жеста)
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    isPlaying = true;
+                    playbackStarted = true;
+                    updatePlayButton();
+                    if (_cViz.audioCtx) _cViz.start();
+                    updateStatus(true);
                     errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
                     fetchMetadata(station.api);
                     metadataInterval && clearInterval(metadataInterval);
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                } catch (err) { console.error('❌ Playback error:', err); updateStatus(false); }
-            }, 150);
+                }).catch(err => {
+                    console.error('❌ Playback error:', err.name, err.message);
+                    if (err.name === 'NotAllowedError') {
+                        // Браузер заблокировал автоплей. Ждём следующего жеста.
+                        statusBadge.innerHTML = '<span>Нажмите Play</span>';
+                        updateStatus(false);
+                    } else {
+                        updateStatus(false);
+                    }
+                });
+            }
         }
+
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
             _cViz.stop(); stopProgressAnimation(); updateStatus(false);
@@ -479,7 +511,7 @@
                 const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
                 Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
             }, { passive: true });
-            audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
+            audio.addEventListener('error', () => { console.log('🔊 Audio error'); updateStatus(false); });
             audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
         }
 
