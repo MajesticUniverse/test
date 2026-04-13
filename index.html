@@ -74,20 +74,14 @@
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
         .visualizer {
-            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 4px; height: 30px; align-items: flex-end; opacity: 0; transition: opacity 0.4s ease;
+            position: absolute; inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            background: linear-gradient(to top, rgba(10,5,20,0.85) 0%, transparent 60%);
         }
         .visualizer.active { opacity: 1; }
-        .visualizer span { width: 4px; background: white; border-radius: 2px; animation: bounce 0.8s infinite ease-in-out alternate; }
-        .visualizer span:nth-child(1) { animation-delay: 0s; height: 12px; }
-        .visualizer span:nth-child(2) { animation-delay: 0.1s; height: 18px; }
-        .visualizer span:nth-child(3) { animation-delay: 0.2s; height: 24px; }
-        .visualizer span:nth-child(4) { animation-delay: 0.3s; height: 15px; }
-        .visualizer span:nth-child(5) { animation-delay: 0.4s; height: 20px; }
-        .visualizer span:nth-child(6) { animation-delay: 0.5s; height: 14px; }
-        .visualizer span:nth-child(7) { animation-delay: 0.6s; height: 26px; }
-        .visualizer span:nth-child(8) { animation-delay: 0.7s; height: 16px; }
-        @keyframes bounce { from { height: 6px; } to { height: 30px; } }
+        #visualizer-canvas { width: 100%; height: 100%; display: block; }
 
         .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
         .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
@@ -171,7 +165,7 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
-                <div class="visualizer" id="visualizer"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="visualizer" id="visualizer"><canvas id="visualizer-canvas"></canvas></div>
             </div>
             <div class="track-info">
                 <h2 class="track-title placeholder" id="track-title">—</h2>
@@ -224,7 +218,7 @@
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
-        const visualizer = document.getElementById('visualizer'), trackTitleEl = document.getElementById('track-title');
+        const visualizer = document.getElementById('visualizer'), visualizerCanvas = document.getElementById('visualizer-canvas'), trackTitleEl = document.getElementById('track-title');
         const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
         const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
         const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
@@ -236,6 +230,118 @@
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
 
         const DEFAULT_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
+
+        // --- CONSTELLATION VISUALIZER ---
+        const vizCtx = visualizerCanvas.getContext('2d');
+        let audioCtx = null, analyser = null, sourceNode = null, freqData = null;
+        let vizAnimId = null, isVizRunning = false, audioUnlocked = false;
+        const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 };
+        const vizNodes = Array.from({ length: VIZ_CONFIG.NUM_NODES }, () => ({ x: 0, y: 0, energy: 0, targetY: 0 }));
+
+        function resizeVisualizerCanvas() {
+            if (!vizCtx || !visualizerCanvas) return;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = visualizerCanvas.getBoundingClientRect();
+            visualizerCanvas.width = rect.width * dpr;
+            visualizerCanvas.height = rect.height * dpr;
+            vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function initAudioAnalysis() {
+            if (audioCtx && analyser && sourceNode) return true;
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return false;
+                audioCtx = audioCtx || new AudioContextClass();
+                analyser = analyser || audioCtx.createAnalyser();
+                analyser.fftSize = VIZ_CONFIG.FFT_SIZE;
+                analyser.smoothingTimeConstant = VIZ_CONFIG.SMOOTHING;
+                freqData = freqData || new Uint8Array(analyser.frequencyBinCount);
+                if (!sourceNode) {
+                    sourceNode = audioCtx.createMediaElementSource(audio);
+                    sourceNode.connect(analyser);
+                }
+                analyser.connect(audioCtx.destination);
+                return true;
+            } catch (e) {
+                console.error('WebAudio init failed', e);
+                return false;
+            }
+        }
+
+        async function unlockAudioContext() {
+            if (!initAudioAnalysis()) return false;
+            if (audioCtx.state === 'suspended') {
+                try {
+                    await audioCtx.resume();
+                } catch (e) {
+                    return false;
+                }
+            }
+            audioUnlocked = audioCtx.state === 'running';
+            return audioUnlocked;
+        }
+
+        function drawConstellation() {
+            if (!isVizRunning || !vizCtx) return;
+            resizeVisualizerCanvas();
+            const rect = visualizerCanvas.getBoundingClientRect();
+            const w = rect.width, h = rect.height;
+            vizCtx.clearRect(0, 0, w, h);
+
+            if (!analyser || !freqData || !audioCtx) {
+                vizAnimId = requestAnimationFrame(drawConstellation);
+                return;
+            }
+
+            analyser.getByteFrequencyData(freqData);
+            const binWidth = audioCtx.sampleRate / analyser.fftSize;
+            const maxFreqBin = Math.min(freqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
+
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                const ratio = i / (VIZ_CONFIG.NUM_NODES - 1);
+                const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
+                const val = freqData[bin] / 255;
+                const node = vizNodes[i];
+                node.x = ratio * w;
+                node.targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
+                node.y += (node.targetY - node.y) * 0.15;
+                node.energy = val;
+            }
+
+            vizCtx.lineWidth = 0.8;
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                for (let j = i + 1; j < VIZ_CONFIG.NUM_NODES; j++) {
+                    const dx = vizNodes[i].x - vizNodes[j].x;
+                    const dy = vizNodes[i].y - vizNodes[j].y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < VIZ_CONFIG.CONN_DISTANCE * VIZ_CONFIG.CONN_DISTANCE) {
+                        const dist = Math.sqrt(distSq);
+                        const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[i].energy + vizNodes[j].energy);
+                        vizCtx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                        vizCtx.beginPath();
+                        vizCtx.moveTo(vizNodes[i].x, vizNodes[i].y);
+                        vizCtx.lineTo(vizNodes[j].x, vizNodes[j].y);
+                        vizCtx.stroke();
+                    }
+                }
+            }
+
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                const n = vizNodes[i];
+                const r = 1.2 + n.energy * 3.5;
+                const alpha = 0.4 + n.energy * 0.6;
+                vizCtx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
+                vizCtx.shadowBlur = 6;
+                vizCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                vizCtx.beginPath();
+                vizCtx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                vizCtx.fill();
+                vizCtx.shadowBlur = 0;
+            }
+
+            vizAnimId = requestAnimationFrame(drawConstellation);
+        }
 
         // --- ФУНКЦИИ ---
         function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
@@ -353,12 +459,15 @@
             }
         }
 
-        function startPlayback(station) {
+        async function startPlayback(station) {
             console.log(`🎵 Playing: ${station.stream}`); 
             playbackStarted = false; 
+            await unlockAudioContext();
             audio.src = `${station.stream}?t=${Date.now()}`;
+            audio.load();
             setTimeout(async () => {
                 try {
+                    await unlockAudioContext();
                     await audio.play(); 
                     console.log('✅ Playback started'); 
                     isPlaying = true; playbackStarted = true;
@@ -403,8 +512,23 @@
             } catch (e) { /* silent */ }
         }
 
-        function startVisualizer() { visualizer.classList.add('active'); }
-        function stopVisualizer() { visualizer.classList.remove('active'); }
+        function startVisualizer() {
+            visualizer.classList.add('active');
+            if (!initAudioAnalysis()) return;
+            if (!isVizRunning) {
+                isVizRunning = true;
+                cancelAnimationFrame(vizAnimId);
+                drawConstellation();
+            }
+        }
+        function stopVisualizer() {
+            visualizer.classList.remove('active');
+            isVizRunning = false;
+            cancelAnimationFrame(vizAnimId);
+            if (!vizCtx) return;
+            const rect = visualizerCanvas.getBoundingClientRect();
+            vizCtx.clearRect(0, 0, rect.width, rect.height);
+        }
 
         function setupEventListeners() {
             playBtn.addEventListener('click', togglePlay);
@@ -425,6 +549,16 @@
                 Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
             }, { passive: true });
             
+            const unlockHandler = async () => {
+                await unlockAudioContext();
+                if (audioUnlocked) {
+                    document.removeEventListener('touchstart', unlockHandler);
+                    document.removeEventListener('click', unlockHandler);
+                }
+            };
+            document.addEventListener('touchstart', unlockHandler, { passive: true });
+            document.addEventListener('click', unlockHandler);
+
             audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
             audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
         }
@@ -452,6 +586,8 @@
             } catch (e) { /* ignore */ }
         }
 
+        window.addEventListener('resize', resizeVisualizerCanvas);
+        resizeVisualizerCanvas();
         window.addEventListener('beforeunload', () => stopPlayback());
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
     </script>
