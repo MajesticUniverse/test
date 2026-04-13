@@ -12,10 +12,8 @@
     <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
     
-    <!-- Fonts & Telegram SDK -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Fonts via fontsource -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/index.min.css">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
     
     <style>
@@ -73,21 +71,23 @@
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
-        .visualizer {
-            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 4px; height: 30px; align-items: flex-end; opacity: 0; transition: opacity 0.4s ease;
+        /* ===== CONSTELLATION VISUALIZER ===== */
+        .viz-container {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            background: linear-gradient(to top, rgba(10,5,20,0.75) 0%, transparent 60%);
+            border-radius: var(--border-radius);
+            overflow: hidden;
         }
-        .visualizer.active { opacity: 1; }
-        .visualizer span {
-            width: 4px;
-            background: white;
-            border-radius: 2px;
-            height: 6px;
-            transform-origin: bottom;
-            transition: transform 0.05s ease;
-            will-change: transform;
+        .viz-container.active { opacity: 1; }
+        #viz-canvas {
+            width: 100%; height: 100%; display: block;
         }
-        
+
         .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
         .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
         .track-title.placeholder { opacity: 0.5; }
@@ -170,7 +170,9 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
-                <div class="visualizer" id="visualizer"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="viz-container" id="viz-container">
+                    <canvas id="viz-canvas"></canvas>
+                </div>
             </div>
             <div class="track-info">
                 <h2 class="track-title placeholder" id="track-title">—</h2>
@@ -201,7 +203,117 @@
     <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
-        // --- КОНФИГУРАЦИЯ ---
+        // ===========================
+        // 🎨 CONSTELLATION VISUALIZER
+        // ===========================
+        const _cViz = {
+            ctx: null, analyser: null, srcNode: null, freqData: null, animId: null,
+            running: false, audioCtx: null,
+            CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 },
+            nodes: [],
+            init(audioElement) {
+                if (this.audioCtx) return true;
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioCtx = new AudioContext();
+                    this.analyser = this.audioCtx.createAnalyser();
+                    this.analyser.fftSize = this.CONFIG.FFT_SIZE;
+                    this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
+                    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+                    this.srcNode = this.audioCtx.createMediaElementSource(audioElement);
+                    this.srcNode.connect(this.analyser);
+                    this.analyser.connect(this.audioCtx.destination);
+                    return true;
+                } catch (e) { console.error('Web Audio error:', e); return false; }
+            },
+            draw() {
+                const c = document.getElementById('viz-canvas');
+                const ctx = this.ctx || c.getContext('2d');
+                this.ctx = ctx;
+                const dpr = window.devicePixelRatio || 1;
+                const rect = c.getBoundingClientRect();
+                c.width = rect.width * dpr;
+                c.height = rect.height * dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                const w = rect.width, h = rect.height;
+                ctx.clearRect(0, 0, w, h);
+                if (!this.analyser || !this.freqData) { this.animId = requestAnimationFrame(() => this.draw()); return; }
+                this.analyser.getByteFrequencyData(this.freqData);
+                const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
+                const maxBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
+                if (this.nodes.length !== this.CONFIG.NUM_NODES) {
+                    this.nodes = [];
+                    for (let i = 0; i < this.CONFIG.NUM_NODES; i++) this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+                }
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
+                    const ratio = i / (this.CONFIG.NUM_NODES - 1);
+                    const bin = Math.max(0, Math.floor(ratio * maxBin));
+                    const val = this.freqData[bin] / 255;
+                    this.nodes[i].x = ratio * w;
+                    this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
+                    this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
+                    this.nodes[i].energy = val;
+                }
+                ctx.lineWidth = 0.8;
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
+                    for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
+                        const dx = this.nodes[i].x - this.nodes[j].x;
+                        const dy = this.nodes[i].y - this.nodes[j].y;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) {
+                            const dist = Math.sqrt(distSq);
+                            const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy);
+                            ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                            ctx.beginPath();
+                            ctx.moveTo(this.nodes[i].x, this.nodes[i].y);
+                            ctx.lineTo(this.nodes[j].x, this.nodes[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
+                    const n = this.nodes[i];
+                    const r = 1.2 + n.energy * 3.5;
+                    const alpha = 0.4 + n.energy * 0.6;
+                    ctx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
+                    ctx.shadowBlur = 6;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+                this.animId = requestAnimationFrame(() => this.draw());
+            },
+            start() {
+                document.getElementById('viz-container').classList.add('active');
+                if (!this.running) {
+                    this.running = true;
+                    cancelAnimationFrame(this.animId);
+                    this.draw();
+                }
+            },
+            stop() {
+                document.getElementById('viz-container').classList.remove('active');
+                this.running = false;
+                cancelAnimationFrame(this.animId);
+                if (this.ctx) {
+                    const c = document.getElementById('viz-canvas');
+                    const rect = c.getBoundingClientRect();
+                    this.ctx.clearRect(0, 0, rect.width, rect.height);
+                }
+            },
+            cleanup() {
+                this.stop();
+                if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} this.srcNode = null; }
+                if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; }
+                if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(() => {}); this.audioCtx = null; }
+            }
+        };
+
+        // ===========================
+        // 📻 RADIO APP
+        // ===========================
         const STREAM_URLS = {
             liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
             drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
@@ -218,72 +330,51 @@
             old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
         };
 
-        // --- ЭЛЕМЕНТЫ ---
         const audio = document.getElementById('audio-player');
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
-        const visualizer = document.getElementById('visualizer'), trackTitleEl = document.getElementById('track-title');
-        const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
-        const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
-        const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
+        const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');
+        const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current');
+        const progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
 
-        // --- СОСТОЯНИЕ ---
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
-        
-        // --- WEB AUDIO API VARIABLES ---
-        let audioCtx = null;
-        let analyser = null;
-        let dataArray = null;
-        let visualizerBars = [];
-        let isVisualizerActive = false;
-        let animationId = null;
 
         const DEFAULT_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        // --- ФУНКЦИИ ---
         function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
-        
         function updateProgress(elapsed, duration) {
             if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
             progressContainer.classList.add('active');
             const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
             progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
         }
-
         function startProgressAnimation() {
             progressInterval && clearInterval(progressInterval);
             progressInterval = setInterval(() => {
                 if (!isPlaying || !trackData.duration) return;
                 const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
-                elapsed >= trackData.duration || updateProgress(elapsed, trackData.duration);
+                elapsed < trackData.duration && updateProgress(elapsed, trackData.duration);
             }, 500);
         }
-
         function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
-        
         function updateStatus(online) {
             statusBadge.classList.remove('online', 'error');
             if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
-            else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
+            else statusBadge.innerHTML = '<span>Оффлайн</span>';
         }
-
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
-        
         function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
         function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
         function toggleStations() { stationsOpen ? closeStations() : openStations(); }
-
         function renderStationsList() {
             if (!stationsListEl) return;
             const keys = Object.keys(stations);
-            if (keys.length === 0) {
-                stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>';
-                return;
-            }
+            if (keys.length === 0) { stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>'; return; }
             stationsListEl.innerHTML = '';
             keys.forEach((key) => {
                 const station = stations[key];
@@ -294,59 +385,38 @@
                 stationsListEl.appendChild(btn);
             });
         }
-
-        // Инициализация статики (мгновенно)
         function initStationsStatic() {
             stations = {};
-            STATION_IDS.forEach((id) => {
-                stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
-            });
+            STATION_IDS.forEach((id) => { stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG }; });
             renderStationsList();
             currentStationKey = STATION_IDS[0];
             setCoverArt(DEFAULT_COVER_SVG);
         }
-
-        // Загрузка данных API (параллельно и безопасно)
         async function loadStationsBackground() {
-            // Загружаем все станции одновременно, а не по очереди
             const promises = STATION_IDS.map(async (stationId) => {
                 try {
-                    // Таймаут 3 секунды на каждый запрос
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 3000);
-                    
                     const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
-                    clearTimeout(timeoutId); // Очищаем таймер при успехе
-
+                    clearTimeout(timeoutId);
                     if (response.ok) {
                         const data = await response.json();
                         let artUrl = DEFAULT_COVER_SVG;
-                        if (data.now_playing?.song?.art?.trim()) {
-                            artUrl = data.now_playing.song.art;
-                            if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
-                        } else if (data.station?.front_art?.trim()) {
-                            artUrl = data.station.front_art;
-                            if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
-                        }
-                        if (stations[stationId]) {
-                            stations[stationId].name = data.station?.name || stations[stationId].name;
-                            stations[stationId].art = artUrl;
-                        }
+                        if (data.now_playing?.song?.art?.trim()) { artUrl = data.now_playing.song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
+                        else if (data.station?.front_art?.trim()) { artUrl = data.station.front_art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
+                        if (stations[stationId]) { stations[stationId].name = data.station?.name || stations[stationId].name; stations[stationId].art = artUrl; }
                         if (stationId === currentStationKey) setCoverArt(artUrl);
                         renderStationsList();
                     }
-                } catch (e) { /* Ошибки сети игнорируем */ }
+                } catch (e) {}
             });
-
             await Promise.all(promises);
         }
-
         function switchStation(key, autoPlay = true) {
             const station = stations[key]; if (!station) return;
             playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
             if (autoPlay) startPlayback(station);
         }
-
         function setCoverArt(artUrl) {
             if (!coverArt) return;
             if (artUrl?.trim()) {
@@ -354,199 +424,54 @@
                 img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
                 img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
                 img.src = artUrl;
-            } else { 
-                coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; 
-                coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
-            }
+            } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
         }
-
-        // --- WEB AUDIO API FUNCTIONS ---
-        function setupAudioVisualizer() {
-            if (audioCtx) return; // Если уже создан, ничего не делать
-            
-            try {
-                // 1. Создаем AudioContext с поддержкой префиксов
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                
-                // 2. Создаем источник звука из <audio> элемента
-                const source = audioCtx.createMediaElementSource(audio);
-                
-                // 3. Создаем AnalyserNode
-                analyser = audioCtx.createAnalyser();
-                
-                // 4. Настройка AnalyserNode
-                analyser.fftSize = 256; // Устанавливаем разрешение для 128 частотных полос
-                dataArray = new Uint8Array(analyser.frequencyBinCount); // Создаем массив для данных
-                analyser.smoothingTimeConstant = 0.8; // Устанавливаем сглаживание
-                
-                // 5. Соединяем узлы: источник -> анализатор -> выход
-                source.connect(analyser);
-                analyser.connect(audioCtx.destination);
-                
-                // 6. Получаем ссылки на бары визуализатора
-                const spans = document.querySelectorAll('.visualizer span');
-                visualizerBars = Array.from(spans);
-                
-                console.log('✅ Audio Visualizer initialized');
-            } catch (err) {
-                console.error('❌ Error setting up audio visualizer:', err);
-            }
-        }
-
-        function visualizerLoop() {
-            if (!isVisualizerActive || !analyser) {
-                return;
-            }
-            
-            try {
-                // 1. Получаем данные о частотах
-                analyser.getByteFrequencyData(dataArray);
-                
-                // 2. Рассчитываем параметры
-                const barCount = visualizerBars.length;
-                const step = dataArray.length / barCount;
-                const maxBarHeight = 30; // Максимальная высота бара в пикселях
-                
-                // 3. Проходим по каждому бару и обновляем его высоту через transform
-                visualizerBars.forEach((bar, index) => {
-                    let maxValue = 0;
-                    const startIndex = Math.floor(index * step);
-                    const endIndex = Math.floor((index + 1) * step);
-                    
-                    for (let i = startIndex; i < endIndex; i++) {
-                        if (dataArray[i] > maxValue) {
-                            maxValue = dataArray[i];
-                        }
-                    }
-                    
-                    // 4. Преобразуем значение в коэффициент масштабирования и применяем
-                    const scale = maxValue / 255; // Нормализуем от 0-255 до 0-1
-                    bar.style.transform = `scaleY(${scale})`;
-                });
-                
-                // 5. Запускаем следующий кадр
-                animationId = requestAnimationFrame(visualizerLoop);
-            } catch (err) {
-                console.error('Visualizer error:', err);
-            }
-        }
-
         function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`); 
-            playbackStarted = false; 
+            console.log(`🎵 Playing: ${station.stream}`); playbackStarted = false;
             audio.src = `${station.stream}?t=${Date.now()}`;
             setTimeout(async () => {
                 try {
-                    // 1. Создаем и возобновляем AudioContext при первом действии пользователя
-                    if (!audioCtx) {
-                        setupAudioVisualizer();
-                        if (audioCtx && audioCtx.state === 'suspended') {
-                            await audioCtx.resume();
-                        }
-                    } else if (audioCtx.state === 'suspended') {
-                        await audioCtx.resume();
-                    }
-                    
-                    await audio.play(); 
-                    console.log('✅ Playback started'); 
+                    if (!_cViz.audioCtx) _cViz.init(audio);
+                    if (_cViz.audioCtx.state === 'suspended') await _cViz.audioCtx.resume();
+                    await audio.play();
+                    console.log('✅ Playback started');
                     isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); startVisualizer(); updateStatus(true); 
+                    updatePlayButton(); _cViz.start(); updateStatus(true);
                     errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(station.api); 
+                    fetchMetadata(station.api);
                     metadataInterval && clearInterval(metadataInterval);
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                 } catch (err) { console.error('❌ Playback error:', err); updateStatus(false); }
             }, 150);
         }
-
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
-            stopVisualizer(); stopProgressAnimation(); updateStatus(false);
+            _cViz.stop(); stopProgressAnimation(); updateStatus(false);
             metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
-            
-            // Очищаем Web Audio граф
-            if (audioCtx) {
-                setTimeout(() => {
-                    if (analyser) {
-                        try {
-                            analyser.disconnect();
-                        } catch(e) {}
-                        analyser = null;
-                    }
-                    if (audioCtx.state !== 'closed') {
-                        audioCtx.close();
-                    }
-                    audioCtx = null;
-                }, 100);
-            }
         }
-
         function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
-        
-        function updatePlayButton() { 
-            playIcon.style.display = isPlaying ? 'none' : 'block'; 
-            pauseIcon.style.display = isPlaying ? 'block' : 'none'; 
-            coverArt.classList.toggle('playing', isPlaying); 
-        }
-
+        function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
         async function fetchMetadata(apiUrl) {
             if (!isPlaying) return;
             try {
                 const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
                 if (!response.ok) return;
                 const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
-                if (song) {
-                    trackTitleEl.textContent = song.title || 'Unknown Track'; 
-                    trackArtistEl.textContent = song.artist || 'Unknown Artist';
-                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
-                }
+                if (song) { trackTitleEl.textContent = song.title || 'Unknown Track'; trackArtistEl.textContent = song.artist || 'Unknown Artist'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); } }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) { /* silent */ }
+            } catch (e) {}
         }
-
-        function startVisualizer() {
-            isVisualizerActive = true;
-            visualizer.classList.add('active');
-            // Сбрасываем все бары на минимальную высоту
-            visualizerBars.forEach(bar => {
-                bar.style.transform = 'scaleY(0.2)';
-            });
-            // Запускаем цикл анимации
-            if (isPlaying && analyser) {
-                if (animationId) {
-                    cancelAnimationFrame(animationId);
-                }
-                visualizerLoop();
-            }
-        }
-
-        function stopVisualizer() {
-            isVisualizerActive = false;
-            visualizer.classList.remove('active');
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
-            }
-            // Сбрасываем бары
-            visualizerBars.forEach(bar => {
-                bar.style.transform = 'scaleY(0)';
-            });
-        }
-
         function setupEventListeners() {
             playBtn.addEventListener('click', togglePlay);
             prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
             nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
             burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
             stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
-            
             let touchStartX = 0, touchStartY = 0, isSwiping = false;
             stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
             stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
-            
             let globalStartX = 0, globalStartY = 0;
             document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
             document.addEventListener('touchend', (e) => {
@@ -554,22 +479,17 @@
                 const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
                 Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
             }, { passive: true });
-            
             audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
             audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
         }
 
-        // --- ЗАПУСК ---
         try {
             initPlaceholders();
             setupEventListeners();
-            initStationsStatic(); // Мгновенный рендер
-            loadStationsBackground(); // Фоновая загрузка
-        } catch (e) {
-            console.error("Init Error:", e);
-        }
+            initStationsStatic();
+            loadStationsBackground();
+        } catch (e) { console.error("Init Error:", e); }
 
-        // Telegram Web App
         if (window.Telegram && window.Telegram.WebApp) {
             try {
                 const tg = window.Telegram.WebApp;
@@ -579,10 +499,19 @@
                     if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
                     if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) {}
         }
 
-        window.addEventListener('beforeunload', () => stopPlayback());
+        window.addEventListener('resize', () => {
+            if (_cViz.ctx) {
+                const c = document.getElementById('viz-canvas');
+                const dpr = window.devicePixelRatio || 1;
+                const rect = c.getBoundingClientRect();
+                c.width = rect.width * dpr;
+                c.height = rect.height * dpr;
+            }
+        });
+        window.addEventListener('beforeunload', () => { stopPlayback(); _cViz.cleanup(); });
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
     </script>
 </body>
