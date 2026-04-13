@@ -193,7 +193,7 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    <audio id="audio-player" preload="none" playsinline></audio>
     
     <script>
         // --- КОНФИГУРАЦИЯ ---
@@ -215,7 +215,6 @@
 
         // --- ЭЛЕМЕНТЫ ---
         const audio = document.getElementById('audio-player');
-        audio.crossOrigin = 'anonymous';
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
@@ -236,6 +235,7 @@
         const vizCtx = visualizerCanvas.getContext('2d');
         let audioCtx = null, analyser = null, sourceNode = null, freqData = null;
         let vizAnimId = null, isVizRunning = false, audioUnlocked = false;
+        let visualizerAvailable = true;
         const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 };
         const vizNodes = Array.from({ length: VIZ_CONFIG.NUM_NODES }, () => ({ x: 0, y: 0, energy: 0, targetY: 0 }));
 
@@ -253,8 +253,6 @@
             try {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContextClass) return false;
-                // Важно для AzuraCast: CORS должен быть включён на стриме, иначе анализатор получает нули.
-                audio.crossOrigin = 'anonymous';
                 audioCtx = audioCtx || new AudioContextClass();
                 analyser = analyser || audioCtx.createAnalyser();
                 analyser.fftSize = VIZ_CONFIG.FFT_SIZE;
@@ -267,7 +265,9 @@
                 analyser.connect(audioCtx.destination);
                 return true;
             } catch (e) {
-                console.error('WebAudio init failed', e);
+                // Частый кейс в Telegram/iOS: поток играет, но CORS для анализатора закрыт.
+                visualizerAvailable = false;
+                console.warn('Visualizer disabled (WebAudio/CORS unavailable):', e?.message || e);
                 return false;
             }
         }
@@ -491,6 +491,22 @@
                 metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
             } catch (err) {
                 console.error('❌ Playback error:', err);
+                // Fallback для серверов/прокси, которые не любят cache-busting query.
+                try {
+                    audio.src = station.stream;
+                    await audio.play();
+                    isPlaying = true;
+                    playbackStarted = true;
+                    updatePlayButton();
+                    startVisualizer();
+                    updateStatus(true);
+                    fetchMetadata(station.api);
+                    metadataInterval && clearInterval(metadataInterval);
+                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                    return;
+                } catch (fallbackErr) {
+                    console.error('❌ Playback fallback error:', fallbackErr);
+                }
                 updateStatus(false);
             }
         }
@@ -528,6 +544,7 @@
         }
 
         function startVisualizer() {
+            if (!visualizerAvailable) return;
             visualizer.classList.add('active');
             if (!initAudioAnalysis()) return;
             if (!isVizRunning) {
