@@ -470,9 +470,13 @@
             audio.load();
 
             try {
-                // На iOS Safari play() должен вызываться максимально близко к пользовательскому действию.
+                // Для iOS Safari вызов play() должен быть первым асинхронным действием внутри click/touch.
+                const playPromise = audio.play();
+                if (playPromise && typeof playPromise.then === 'function') {
+                    await playPromise;
+                }
+                // Анализатор и WebAudio можно инициализировать уже после успешного старта воспроизведения.
                 await unlockAudioContext();
-                await audio.play();
 
                 console.log('✅ Playback started');
                 isPlaying = true;
