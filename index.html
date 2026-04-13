@@ -10,10 +10,9 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/index.min.css">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+    
     <style>
         :root {
             --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
@@ -46,40 +45,22 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60;
         }
         .burger-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.3); }
-        .burger-btn .burger-line {
-            width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px;
-            position: absolute; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        .burger-btn .burger-line { width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px; position: absolute; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .burger-btn .burger-line:first-child { transform: translateY(-5px); }
         .burger-btn .burger-line:nth-child(3) { transform: translateY(5px); }
         .burger-btn.active .burger-line:first-child { transform: rotate(45deg); }
         .burger-btn.active .burger-line:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .burger-btn.active .burger-line:nth-child(3) { transform: rotate(-45deg); }
 
-        .cover-wrapper {
-            position: relative; width: 100%; margin-bottom: 24px; border-radius: var(--border-radius);
-            overflow: hidden; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5); aspect-ratio: 1;
-        }
-        .cover-art {
-            width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-            display: flex; align-items: center; justify-content: center; font-size: 80px;
-            background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        .cover-wrapper { position: relative; width: 100%; margin-bottom: 24px; border-radius: var(--border-radius); overflow: hidden; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5); aspect-ratio: 1; }
+        .cover-art { width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); display: flex; align-items: center; justify-content: center; font-size: 80px; background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
         .cover-art.playing { animation: pulse-slow 6s ease-in-out infinite; }
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
-        /* === СТИЛЬНЫЙ ВИЗУАЛИЗАТОР === */
-        .visualizer-container {
-            position: absolute; bottom: 0; left: 0; right: 0;
-            width: 100%; height: 80px;
-            pointer-events: none; 
-            z-index: 10;
-            opacity: 0;
-            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .visualizer-container.active { opacity: 1; }
-        #visualizer-canvas { width: 100%; height: 100%; display: block; }
+        .viz-container { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 0.4s ease; background: linear-gradient(to top, rgba(10,5,20,0.75) 0%, transparent 60%); border-radius: var(--border-radius); overflow: hidden; }
+        .viz-container.active { opacity: 1; }
+        #viz-canvas { width: 100%; height: 100%; display: block; }
 
         .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
         .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
@@ -94,46 +75,22 @@
         .progress-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 500; }
         
         .controls { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 32px; }
-        .control-btn {
-            width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
-            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow);
-        }
+        .control-btn { width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1); background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); }
         .control-btn svg { width: 20px; height: 20px; fill: currentColor; transition: transform 0.2s; }
         .control-btn:hover { background: var(--btn-glass-hover); transform: translateY(-2px); }
         .control-btn:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.2); }
         
-        .play-btn {
-            width: 76px; height: 76px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8));
-            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        .play-btn { width: 76px; height: 76px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8)); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); color: white; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .play-btn svg { width: 28px; height: 28px; fill: white; }
         .play-btn:hover { background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(167, 139, 250, 0.95)); transform: translateY(-3px) scale(1.05); }
         .play-btn:active { transform: scale(0.95); }
 
-        .stations-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(15px);
-            border-radius: var(--border-radius-lg); z-index: 50;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            padding: 32px 24px; opacity: 0; visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
-            transform: scale(0.95);
-        }
+        .stations-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(15px); border-radius: var(--border-radius-lg); z-index: 50; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 32px 24px; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease; transform: scale(0.95); }
         .stations-overlay.open { opacity: 1; visibility: visible; transform: scale(1); }
         .stations-overlay-content { display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 1; pointer-events: auto; }
         .stations-overlay-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); }
         .stations-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
-        .station-item {
-            width: 100%; padding: 14px 18px; border-radius: 12px;
-            background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-primary); font-size: 14px; cursor: pointer;
-            transition: all 0.2s ease; font-family: inherit; font-weight: 500;
-            text-align: left; display: flex; align-items: center; gap: 10px;
-        }
+        .station-item { width: 100%; padding: 14px 18px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-primary); font-size: 14px; cursor: pointer; transition: all 0.2s ease; font-family: inherit; font-weight: 500; text-align: left; display: flex; align-items: center; gap: 10px; }
         .station-item:hover { background: rgba(255, 255, 255, 0.12); }
         .station-item:active { transform: scale(0.98); }
         .station-item.active { background: rgba(124, 58, 237, 0.3); border-color: var(--accent); }
@@ -163,9 +120,7 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
-                <div class="visualizer-container" id="visualizer-container">
-                    <canvas id="visualizer-canvas"></canvas>
-                </div>
+                <div class="viz-container" id="viz-container"><canvas id="viz-canvas"></canvas></div>
             </div>
             <div class="track-info">
                 <h2 class="track-title placeholder" id="track-title">—</h2>
@@ -183,7 +138,6 @@
                 </button>
                 <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
-
             <div class="stations-overlay" id="stations-overlay">
                 <div class="stations-overlay-content">
                     <div class="stations-overlay-title">📻 Станции</div>
@@ -193,10 +147,113 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    <!-- 🔧 БЕЗ crossorigin, БЕЗ preload. Только inline-атрибуты для iOS -->
+    <audio id="audio-player" playsinline webkit-playsinline></audio>
     
     <script>
-        // --- КОНФИГУРАЦИЯ ---
+        // ===========================
+        // 🎨 CONSTELLATION VISUALIZER
+        // ===========================
+        const _cViz = {
+            ctx: null, analyser: null, srcNode: null, freqData: null, animId: null,
+            running: false, audioCtx: null, vizEnabled: true, linked: false,
+            CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 },
+            nodes: [],
+            init(audioElement) {
+                if (this.linked) return true;
+                if (!this.vizEnabled) return false;
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioCtx = new AudioContext();
+                    if (this.audioCtx.state === 'suspended') this.audioCtx.resume().catch(() => {});
+                    this.analyser = this.audioCtx.createAnalyser();
+                    this.analyser.fftSize = this.CONFIG.FFT_SIZE;
+                    this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
+                    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+                    this.srcNode = this.audioCtx.createMediaElementSource(audioElement);
+                    this.srcNode.connect(this.analyser);
+                    this.analyser.connect(this.audioCtx.destination);
+                    this.linked = true;
+                    return true;
+                } catch (e) { 
+                    console.warn('⚠️ Viz disabled (CORS):', e.message);
+                    this.vizEnabled = false;
+                    return false; 
+                }
+            },
+            draw() {
+                if (!this.vizEnabled || !this.linked) return;
+                const c = document.getElementById('viz-canvas');
+                if (!c) return;
+                const ctx = this.ctx || c.getContext('2d');
+                this.ctx = ctx;
+                const dpr = window.devicePixelRatio || 1;
+                const rect = c.getBoundingClientRect();
+                c.width = rect.width * dpr; c.height = rect.height * dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                const w = rect.width, h = rect.height;
+                ctx.clearRect(0, 0, w, h);
+                if (!this.analyser || !this.freqData) { this.animId = requestAnimationFrame(() => this.draw()); return; }
+                
+                this.analyser.getByteFrequencyData(this.freqData);
+                const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
+                const maxBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
+                if (this.nodes.length !== this.CONFIG.NUM_NODES) {
+                    this.nodes = [];
+                    for (let i = 0; i < this.CONFIG.NUM_NODES; i++) this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+                }
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
+                    const ratio = i / (this.CONFIG.NUM_NODES - 1);
+                    const bin = Math.max(0, Math.floor(ratio * maxBin));
+                    const val = this.freqData[bin] / 255;
+                    this.nodes[i].x = ratio * w;
+                    this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
+                    this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
+                    this.nodes[i].energy = val;
+                }
+                ctx.lineWidth = 0.8;
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
+                    for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
+                        const dx = this.nodes[i].x - this.nodes[j].x, dy = this.nodes[i].y - this.nodes[j].y;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) {
+                            const dist = Math.sqrt(distSq);
+                            const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy);
+                            ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                            ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke();
+                        }
+                    }
+                }
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
+                    const n = this.nodes[i], r = 1.2 + n.energy * 3.5, alpha = 0.4 + n.energy * 0.6;
+                    ctx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`; ctx.shadowBlur = 6;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+                }
+                this.animId = requestAnimationFrame(() => this.draw());
+            },
+            start() {
+                if (!this.vizEnabled || !this.linked) return;
+                document.getElementById('viz-container').classList.add('active');
+                if (!this.running) { this.running = true; cancelAnimationFrame(this.animId); this.draw(); }
+            },
+            stop() {
+                document.getElementById('viz-container').classList.remove('active');
+                this.running = false; cancelAnimationFrame(this.animId);
+                if (this.ctx) { const c = document.getElementById('viz-canvas'); const rect = c.getBoundingClientRect(); this.ctx.clearRect(0, 0, rect.width, rect.height); }
+            },
+            cleanup() {
+                this.stop();
+                if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} this.srcNode = null; }
+                if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; }
+                if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(() => {}); this.audioCtx = null; }
+                this.linked = false;
+            }
+        };
+
+        // ===========================
+        // 📻 RADIO APP — iOS SAFARI FIX
+        // ===========================
         const STREAM_URLS = {
             liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
             drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
@@ -208,204 +265,36 @@
         };
         const BASE_URL = 'https://majesticradio.duckdns.org';
         const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
-        const STATION_NAMES = {
-            liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
-            old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
-        };
+        const STATION_NAMES = { liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill', old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room' };
 
-        // --- ЭЛЕМЕНТЫ ---
         const audio = document.getElementById('audio-player');
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
-        const visualizerContainer = document.getElementById('visualizer-container'), trackTitleEl = document.getElementById('track-title');
-        const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
-        const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
-        const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
+        const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');
+        const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current');
+        const progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
-        const canvas = document.getElementById('visualizer-canvas');
-        const canvasCtx = canvas ? canvas.getContext('2d') : null;
 
-        // === СТИЛЬНЫЙ ВИЗУАЛИЗАТОР (GLASSMORPHISM WAVE) ===
-        let audioContext = null, analyser = null, source = null, animationId = null;
-        let dataArray = null, bufferLength = 0, sampleRate = 44100;
-        let isVisualizerRunning = false;
-        
-        const MIN_FREQ = 50, MAX_FREQ = 20000, POINTS = 40;
-        const freqBins = [];
-        const smoothedData = new Array(POINTS).fill(0);
-
-        function calcFreqBins() {
-            freqBins.length = 0;
-            const binWidth = sampleRate / bufferLength;
-            for (let i = 0; i < POINTS; i++) {
-                const logMin = Math.log2(MIN_FREQ);
-                const logMax = Math.log2(MAX_FREQ);
-                const ratio = i / (POINTS - 1);
-                const centerFreq = Math.pow(2, logMin + (logMax - logMin) * ratio);
-                const start = Math.max(0, Math.floor(centerFreq / binWidth * 0.8));
-                const end = Math.min(bufferLength - 1, Math.floor(centerFreq / binWidth * 1.2));
-                freqBins.push({ start, end });
-            }
-        }
-
-        function getFrequencyData() {
-            if (!analyser || !dataArray) return smoothedData.map(() => 0);
-            analyser.getByteFrequencyData(dataArray);
-            const raw = [];
-            for (let i = 0; i < POINTS; i++) {
-                const bin = freqBins[i];
-                let sum = 0, count = 0;
-                for (let b = bin.start; b <= bin.end; b++) { sum += dataArray[b]; count++; }
-                raw.push(count > 0 ? sum / count : 0);
-            }
-            // Сглаживание
-            for (let i = 0; i < POINTS; i++) {
-                smoothedData[i] += (raw[i] - smoothedData[i]) * 0.18;
-            }
-            return smoothedData;
-        }
-
-        function initWebAudio() {
-            if (audioContext) return true;
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                sampleRate = audioContext.sampleRate || 44100;
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 4096;
-                analyser.smoothingTimeConstant = 0.85;
-                bufferLength = analyser.frequencyBinCount;
-                dataArray = new Uint8Array(bufferLength);
-                source = audioContext.createMediaElementSource(audio);
-                source.connect(analyser);
-                analyser.connect(audioContext.destination);
-                calcFreqBins();
-                console.log('🎨 Audio Visualizer: INITIALIZED (Glassmorphism Wave)');
-                return true;
-            } catch (e) { console.error('❌ Web Audio:', e.message); return false; }
-        }
-
-        function draw() {
-            if (!canvasCtx) { animationId = requestAnimationFrame(draw); return; }
-            
-            const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-            const width = rect.width;
-            const height = rect.height;
-            const data = getFrequencyData();
-            const bassLevel = data.slice(0, 5).reduce((a,b) => a+b, 0) / (5 * 255);
-
-            canvasCtx.clearRect(0, 0, width, height);
-
-            // Фоновое пульсирование (реагирует на бас)
-            const pulseGrad = canvasCtx.createRadialGradient(width * 0.5, height, 0, width * 0.5, height, 60 + bassLevel * 80);
-            pulseGrad.addColorStop(0, `rgba(124, 58, 237, ${bassLevel * 0.25})`);
-            pulseGrad.addColorStop(1, 'rgba(124, 58, 237, 0)');
-            canvasCtx.fillStyle = pulseGrad;
-            canvasCtx.fillRect(0, 0, width, height);
-
-            // Точки для кривой
-            const points = data.map((val, i) => ({
-                x: (i / (POINTS - 1)) * width,
-                y: height - (val / 255) * height * 0.88
-            }));
-
-            // 1. Заполнение под кривой (градиент в стиле приложения)
-            canvasCtx.beginPath();
-            canvasCtx.moveTo(0, height);
-            for (let i = 0; i < points.length; i++) {
-                const p = points[i];
-                if (i === 0) canvasCtx.lineTo(p.x, p.y);
-                else {
-                    const prev = points[i - 1];
-                    const cpX = (prev.x + p.x) / 2;
-                    canvasCtx.quadraticCurveTo(prev.x, prev.y, cpX, (prev.y + p.y) / 2);
-                }
-            }
-            canvasCtx.lineTo(width, height);
-            canvasCtx.closePath();
-            
-            const fillGrad = canvasCtx.createLinearGradient(0, 0, 0, height);
-            fillGrad.addColorStop(0, 'rgba(255, 255, 255, 0.75)');
-            fillGrad.addColorStop(0.4, 'rgba(167, 139, 250, 0.35)');
-            fillGrad.addColorStop(1, 'rgba(124, 58, 237, 0.05)');
-            canvasCtx.fillStyle = fillGrad;
-            canvasCtx.fill();
-
-            // 2. Основная линия (белая с мягким свечением)
-            canvasCtx.beginPath();
-            for (let i = 0; i < points.length; i++) {
-                const p = points[i];
-                if (i === 0) canvasCtx.moveTo(p.x, p.y);
-                else {
-                    const prev = points[i - 1];
-                    const cpX = (prev.x + p.x) / 2;
-                    canvasCtx.quadraticCurveTo(prev.x, prev.y, cpX, (prev.y + p.y) / 2);
-                }
-            }
-            canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-            canvasCtx.lineWidth = 2.5;
-            canvasCtx.lineCap = 'round';
-            canvasCtx.shadowColor = 'rgba(167, 139, 250, 0.8)';
-            canvasCtx.shadowBlur = 12;
-            canvasCtx.stroke();
-            canvasCtx.shadowBlur = 0;
-
-            animationId = requestAnimationFrame(draw);
-        }
-
-        function startVisualizer() {
-            visualizerContainer.classList.add('active');
-            if (!initWebAudio()) return;
-            if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
-            if (!isVisualizerRunning) {
-                isVisualizerRunning = true;
-                cancelAnimationFrame(animationId);
-                draw();
-                console.log('🌊 Visualizer running');
-            }
-        }
-
-        function stopVisualizer() {
-            visualizerContainer.classList.remove('active');
-            isVisualizerRunning = false;
-            cancelAnimationFrame(animationId);
-            if (canvasCtx) canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-            smoothedData.fill(0);
-        }
-        // === КОНЕЦ ВИЗУАЛИЗАТОРА ===
-
-        // --- ОСТАЛЬНОЙ КОД ПЛЕЕРА ---
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
-        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false, audioCtxUnlocked = false;
         const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        function formatTime(s) { if (!s || s < 0) return '0:00'; return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`; }
+        function formatTime(s) { return (!s || s < 0) ? '0:00' : `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
         function updateProgress(elapsed, duration) {
             if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
             progressContainer.classList.add('active');
-            const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
-            progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
+            progressFill.style.width = `${Math.min(100, (elapsed/duration)*100)}%`;
+            progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
         }
         function startProgressAnimation() {
             progressInterval && clearInterval(progressInterval);
-            progressInterval = setInterval(() => {
-                if (!isPlaying || !trackData.duration) return;
-                const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
-                if (elapsed < trackData.duration) updateProgress(elapsed, trackData.duration);
-            }, 500);
+            progressInterval = setInterval(() => { if (isPlaying && trackData.duration) updateProgress(trackData.elapsed + (Date.now()-trackData.lastUpdate)/1000, trackData.duration); }, 500);
         }
         function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
-        function updateStatus(online) {
-            statusBadge.classList.remove('online', 'error');
-            statusBadge.classList.add(online ? 'online' : '');
-            statusBadge.innerHTML = online ? '<span>В эфире</span>' : '<span>Оффлайн</span>';
-        }
+        function updateStatus(online) { statusBadge.classList.remove('online','error'); if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>'; else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
         function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
@@ -413,121 +302,140 @@
         function renderStationsList() {
             if (!stationsListEl) return;
             const keys = Object.keys(stations);
-            if (keys.length === 0) { stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>'; return; }
-            stationsListEl.innerHTML = '';
-            keys.forEach((key) => {
+            stationsListEl.innerHTML = keys.length === 0 ? '<div class="stations-empty">Нет станций</div>' : '';
+            keys.forEach(k => {
                 const btn = document.createElement('button');
-                btn.className = `station-item${key === currentStationKey ? ' active' : ''}`;
-                btn.innerHTML = `<span class="station-dot"></span><span>${stations[key].name}</span>`;
-                btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); });
+                btn.className = `station-item${k === currentStationKey ? ' active' : ''}`;
+                btn.innerHTML = `<span class="station-dot"></span><span>${stations[k].name}</span>`;
+                btn.onclick = (e) => { e.stopPropagation(); switchStation(k, true); closeStations(); };
                 stationsListEl.appendChild(btn);
             });
         }
         function initStationsStatic() {
             stations = {};
-            STATION_IDS.forEach((id) => {
-                stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
-            });
+            STATION_IDS.forEach(id => { stations[id] = { name: STATION_NAMES[id]||id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG }; });
             renderStationsList(); currentStationKey = STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG);
         }
         async function loadStationsBackground() {
-            const promises = STATION_IDS.map(async (stationId) => {
+            await Promise.all(STATION_IDS.map(async id => {
                 try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000);
-                    const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (response.ok) {
-                        const data = await response.json();
-                        let artUrl = DEFAULT_COVER_SVG;
-                        if (data.now_playing?.song?.art?.trim()) { artUrl = data.now_playing.song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; } 
-                        else if (data.station?.front_art?.trim()) { artUrl = data.station.front_art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
-                        if (stations[stationId]) { stations[stationId].name = data.station?.name || stations[stationId].name; stations[stationId].art = artUrl; }
-                        if (stationId === currentStationKey) setCoverArt(artUrl);
-                        renderStationsList();
+                    const c = new AbortController(), t = setTimeout(()=>c.abort(), 3000);
+                    const r = await fetch(`${BASE_URL}/api/nowplaying/${id}`, { signal: c.signal });
+                    clearTimeout(t);
+                    if (r.ok) {
+                        const d = await r.json();
+                        let art = DEFAULT_COVER_SVG;
+                        if (d.now_playing?.song?.art?.trim()) art = d.now_playing.song.art.startsWith('http') ? d.now_playing.song.art : BASE_URL + d.now_playing.song.art;
+                        else if (d.station?.front_art?.trim()) art = d.station.front_art.startsWith('http') ? d.station.front_art : BASE_URL + d.station.front_art;
+                        if (stations[id]) { stations[id].name = d.station?.name || stations[id].name; stations[id].art = art; }
+                        if (id === currentStationKey) setCoverArt(art); renderStationsList();
                     }
-                } catch (e) {}
-            });
-            await Promise.all(promises);
+                } catch(e){}
+            }));
         }
-        function switchStation(key, autoPlay = true) {
-            const station = stations[key]; if (!station) return;
-            playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
-            if (autoPlay) startPlayback(station);
+        function switchStation(key, autoPlay=true) {
+            const s = stations[key]; if (!s) return;
+            playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(s.art); renderStationsList();
+            if (autoPlay) startPlayback(s);
         }
-        function setCoverArt(artUrl) {
+        function setCoverArt(url) {
             if (!coverArt) return;
-            if (artUrl?.trim()) {
-                const img = new Image();
-                img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.src = artUrl;
-            } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
+            const img = new Image();
+            img.onload = () => { coverArt.style.backgroundImage = `url('${url}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
+            img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
+            img.src = url?.trim() || DEFAULT_COVER_SVG;
         }
+
+        // 🔧 РАЗБЛОКИРОВКА КОНТЕКСТА (iOS)
+        function unlockAudioContext() {
+            if (audioCtxUnlocked) return; audioCtxUnlocked = true;
+            try {
+                if (!_cViz.audioCtx) _cViz.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (_cViz.audioCtx.state === 'suspended') _cViz.audioCtx.resume().catch(()=>{});
+            } catch(e){ console.warn('Unlock failed:', e); }
+        }
+
+        // 🔧 ПОДКЛЮЧЕНИЕ ВИЗУАЛИЗАТОРА ПОСЛЕ НАЧАЛА ВОСПРОИЗВЕДЕНИЯ
+        function tryLinkVisualizer() {
+            if (_cViz.linked || !_cViz.vizEnabled) return;
+            try { _cViz.init(audio); if (_cViz.linked && isPlaying) _cViz.start(); } 
+            catch(e) { console.warn('⚠️ Viz disabled, audio plays:', e.message); _cViz.vizEnabled = false; }
+        }
+
+        // 🔧 МГНОВЕННЫЙ ЗАПУСК (Синхронный play)
         function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`); playbackStarted = false; 
-            audio.src = `${station.stream}?t=${Date.now()}`;
-            audio.play().then(() => {
-                console.log('✅ Playback started'); isPlaying = true; playbackStarted = true;
-                updatePlayButton(); updateStatus(true); startVisualizer();
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                fetchMetadata(station.api); metadataInterval && clearInterval(metadataInterval);
-                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-            }).catch(err => { console.error('❌ Playback error:', err); updateStatus(false); stopVisualizer(); });
+            console.log('🎵 Starting:', station.stream);
+            audio.src = station.stream; // 🔧 БЕЗ .load()
+            
+            try {
+                const p = audio.play(); // 🔧 СИНХРОННЫЙ ВЫЗОВ
+                if (p && typeof p.then === 'function') {
+                    p.then(() => {
+                        isPlaying = true; updatePlayButton(); updateStatus(true);
+                        errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                        fetchMetadata(station.api);
+                        metadataInterval && clearInterval(metadataInterval);
+                        metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                    }).catch(err => { console.warn('Play blocked:', err.name); isPlaying = false; updatePlayButton(); updateStatus(false); });
+                } else { isPlaying = true; updatePlayButton(); updateStatus(true); }
+            } catch(err) { console.error('Playback error:', err); isPlaying = false; updatePlayButton(); }
         }
+
+        // 🔧 ОСТАНОВКА (Без очистки src)
         function stopPlayback() {
-            audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
-            stopVisualizer(); stopProgressAnimation(); updateStatus(false);
-            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            audio.pause(); // 🔧 ТОЛЬКО PAUSE
+            isPlaying = false; updatePlayButton(); _cViz.stop(); stopProgressAnimation(); updateStatus(false);
+            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
+            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
-        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
-        function updatePlayButton() { 
-            playIcon.style.display = isPlaying ? 'none' : 'block'; 
-            pauseIcon.style.display = isPlaying ? 'block' : 'none'; 
-            coverArt.classList.toggle('playing', isPlaying); 
-        }
+        function togglePlay() { unlockAudioContext(); if (currentStationKey && stations[currentStationKey]) isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]); }
+        function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
         async function fetchMetadata(apiUrl) {
             if (!isPlaying) return;
             try {
-                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
-                if (!response.ok) return;
-                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
-                if (song) {
-                    trackTitleEl.textContent = song.title || 'Unknown Track'; trackArtistEl.textContent = song.artist || 'Unknown Artist';
-                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
-                }
+                const r = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
+                if (!r.ok) return; const d = await r.json(), s = d?.now_playing?.song, { duration, elapsed } = d?.now_playing || {};
+                if (s) { trackTitleEl.textContent = s.title||'Unknown'; trackArtistEl.textContent = s.artist||'Unknown'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if (s.art?.trim()) { let u = s.art; if (!u.startsWith('http')) u = BASE_URL + u; setCoverArt(u); } }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) {}
+            } catch(e){}
         }
+
+        // 🔧 СОБЫТИЯ
         function setupEventListeners() {
+            document.addEventListener('touchstart', unlockAudioContext, { once: true, passive: true });
+            document.addEventListener('click', unlockAudioContext, { once: true });
+            
             playBtn.addEventListener('click', togglePlay);
-            prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
-            nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
-            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
-            stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
-            let touchStartX = 0, touchStartY = 0, isSwiping = false;
-            stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
-            stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
-            let globalStartX = 0, globalStartY = 0;
-            document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
-            document.addEventListener('touchend', (e) => { if (stationsOpen) return; const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY; Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click()); }, { passive: true });
-            audio.addEventListener('error', (e) => { console.log('🔊 Audio error:', e); stopVisualizer(); });
-            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
-            audio.addEventListener('pause', () => { if (!isPlaying) stopVisualizer(); });
+            prevBtn.addEventListener('click', () => { const k = Object.keys(stations); if (!k.length) return; switchStation(k[k.indexOf(currentStationKey)<=0 ? k.length-1 : k.indexOf(currentStationKey)-1]); });
+            nextBtn.addEventListener('click', () => { const k = Object.keys(stations); if (!k.length) return; switchStation(k[k.indexOf(currentStationKey)>=k.length-1 ? 0 : k.indexOf(currentStationKey)+1]); });
+            burgerBtn.addEventListener('click', e => { e.stopPropagation(); toggleStations(); });
+            stationsOverlay.addEventListener('click', e => { if (e.target === stationsOverlay) closeStations(); });
+            
+            let tsx=0, tsy=0, sw=false;
+            stationsOverlay.addEventListener('touchstart', e => { tsx=e.changedTouches[0].screenX; tsy=e.changedTouches[0].screenY; sw=true; }, {passive:true});
+            stationsOverlay.addEventListener('touchend', e => { if(!sw) return; sw=false; if(e.changedTouches[0].screenY - tsy > 80) closeStations(); }, {passive:true});
+            let gsx=0, gsy=0;
+            document.addEventListener('touchstart', e => { gsx=e.changedTouches[0].screenX; gsy=e.changedTouches[0].screenY; }, {passive:true});
+            document.addEventListener('touchend', e => {
+                if (stationsOpen) return;
+                const dx = gsx - e.changedTouches[0].screenX, dy = e.changedTouches[0].screenY - gsy;
+                if (Math.abs(dx)>50 && Math.abs(dx)>1.5*Math.abs(dy)) (dx>0 ? nextBtn.click() : prevBtn.click());
+            }, {passive:true});
+            
+            audio.addEventListener('error', () => { isPlaying = false; updatePlayButton(); updateStatus(false); });
+            audio.addEventListener('playing', () => { isPlaying = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); tryLinkVisualizer(); });
+            audio.addEventListener('pause', () => { if(!audio.ended) { isPlaying = false; updatePlayButton(); } });
         }
-        try {
-            initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground();
-            if (canvas) {
-                const resizeCanvas = () => { const dpr = window.devicePixelRatio || 1; const rect = canvas.getBoundingClientRect(); canvas.width = rect.width * dpr; canvas.height = rect.height * dpr; };
-                resizeCanvas(); window.addEventListener('resize', resizeCanvas);
-            }
-        } catch (e) { console.error("Init Error:", e); }
-        if (window.Telegram && window.Telegram.WebApp) {
-            try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand && tg.expand(); if (tg.themeParams) { if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color); if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color); } } catch (e) {}
-        }
-        window.addEventListener('beforeunload', () => { stopPlayback(); if (audioContext && audioContext.state !== 'closed') audioContext.close(); });
+
+        // --- ЗАПУСК ---
+        try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); } 
+        catch(e) { console.error("Init Error:", e); }
+
+        if (window.Telegram?.WebApp) { try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand?.(); if (tg.themeParams?.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color); } catch(e){} }
+        
+        window.addEventListener('resize', () => { if (_cViz.ctx) { const c=document.getElementById('viz-canvas'), d=window.devicePixelRatio||1, r=c.getBoundingClientRect(); c.width=r.width*d; c.height=r.height*d; } });
+        window.addEventListener('beforeunload', () => { stopPlayback(); _cViz.cleanup(); });
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
     </script>
 </body>
