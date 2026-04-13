@@ -463,24 +463,32 @@
         }
 
         async function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`); 
-            playbackStarted = false; 
-            await unlockAudioContext();
+            console.log(`🎵 Playing: ${station.stream}`);
+            playbackStarted = false;
+
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
-            setTimeout(async () => {
-                try {
-                    await unlockAudioContext();
-                    await audio.play(); 
-                    console.log('✅ Playback started'); 
-                    isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); startVisualizer(); updateStatus(true); 
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(station.api); 
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                } catch (err) { console.error('❌ Playback error:', err); updateStatus(false); }
-            }, 150);
+
+            try {
+                // На iOS Safari play() должен вызываться максимально близко к пользовательскому действию.
+                await unlockAudioContext();
+                await audio.play();
+
+                console.log('✅ Playback started');
+                isPlaying = true;
+                playbackStarted = true;
+                updatePlayButton();
+                startVisualizer();
+                updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+
+                fetchMetadata(station.api);
+                metadataInterval && clearInterval(metadataInterval);
+                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+            } catch (err) {
+                console.error('❌ Playback error:', err);
+                updateStatus(false);
+            }
         }
 
         function stopPlayback() {
