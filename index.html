@@ -193,7 +193,7 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline></audio>
+    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
         // --- КОНФИГУРАЦИЯ ---
@@ -215,6 +215,7 @@
 
         // --- ЭЛЕМЕНТЫ ---
         const audio = document.getElementById('audio-player');
+        audio.crossOrigin = 'anonymous';
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
@@ -252,6 +253,8 @@
             try {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContextClass) return false;
+                // Важно для AzuraCast: CORS должен быть включён на стриме, иначе анализатор получает нули.
+                audio.crossOrigin = 'anonymous';
                 audioCtx = audioCtx || new AudioContextClass();
                 analyser = analyser || audioCtx.createAnalyser();
                 analyser.fftSize = VIZ_CONFIG.FFT_SIZE;
