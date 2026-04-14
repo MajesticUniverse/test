@@ -73,23 +73,21 @@
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
-        .visualizer {
-            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 4px; height: 30px; align-items: flex-end; opacity: 0; transition: opacity 0.4s ease;
+        /* === CONSTELLATION VISUALIZER === */
+        .viz-container {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            background: linear-gradient(to top, rgba(10,5,20,0.85) 0%, transparent 50%);
+            z-index: 2;
         }
-        .visualizer.active { opacity: 1; }
-        .visualizer span { width: 4px; background: white; border-radius: 2px; animation: bounce 0.8s infinite ease-in-out alternate; }
-        .visualizer span:nth-child(1) { animation-delay: 0s; height: 12px; }
-        .visualizer span:nth-child(2) { animation-delay: 0.1s; height: 18px; }
-        .visualizer span:nth-child(3) { animation-delay: 0.2s; height: 24px; }
-        .visualizer span:nth-child(4) { animation-delay: 0.3s; height: 15px; }
-        .visualizer span:nth-child(5) { animation-delay: 0.4s; height: 20px; }
-        .visualizer span:nth-child(6) { animation-delay: 0.5s; height: 14px; }
-        .visualizer span:nth-child(7) { animation-delay: 0.6s; height: 26px; }
-        .visualizer span:nth-child(8) { animation-delay: 0.7s; height: 16px; }
-        @keyframes bounce { from { height: 6px; } to { height: 30px; } }
-
-        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+        .viz-container.active { opacity: 1; }
+        #viz-canvas { width: 100%; height: 100%; display: block; }
+        
+        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; position: relative; z-index: 3; }
         .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
         .track-title.placeholder { opacity: 0.5; }
         .track-artist { font-size: 17px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
@@ -171,7 +169,9 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
-                <div class="visualizer" id="visualizer"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="viz-container" id="viz-container">
+                    <canvas id="viz-canvas"></canvas>
+                </div>
             </div>
             <div class="track-info">
                 <h2 class="track-title placeholder" id="track-title">—</h2>
@@ -199,7 +199,7 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline></audio>
+    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
         // --- КОНФИГУРАЦИЯ ---
@@ -224,7 +224,7 @@
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
-        const visualizer = document.getElementById('visualizer'), trackTitleEl = document.getElementById('track-title');
+        const vizContainer = document.getElementById('viz-container'), trackTitleEl = document.getElementById('track-title');
         const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
         const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
         const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
@@ -252,7 +252,7 @@
             progressInterval = setInterval(() => {
                 if (!isPlaying || !trackData.duration) return;
                 const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
-                elapsed >= trackData.duration || updateProgress(elapsed, trackData.duration);
+                if (elapsed < trackData.duration) updateProgress(elapsed, trackData.duration);
             }, 500);
         }
 
@@ -288,7 +288,6 @@
             });
         }
 
-        // Инициализация статики (мгновенно)
         function initStationsStatic() {
             stations = {};
             STATION_IDS.forEach((id) => {
@@ -299,17 +298,14 @@
             setCoverArt(DEFAULT_COVER_SVG);
         }
 
-        // Загрузка данных API (параллельно и безопасно)
         async function loadStationsBackground() {
-            // Загружаем все станции одновременно, а не по очереди
             const promises = STATION_IDS.map(async (stationId) => {
                 try {
-                    // Таймаут 3 секунды на каждый запрос
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 3000);
                     
                     const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
-                    clearTimeout(timeoutId); // Очищаем таймер при успехе
+                    clearTimeout(timeoutId);
 
                     if (response.ok) {
                         const data = await response.json();
@@ -353,6 +349,166 @@
             }
         }
 
+        // ========================================
+        // 🔮 CONSTELLATION VISUALIZER
+        // ========================================
+        let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
+        let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizConnected = false;
+        
+        const VIZ_CONFIG = {
+            NUM_NODES: 48,
+            CONN_DISTANCE: 45,
+            FFT_SIZE: 2048,
+            SMOOTHING: 0.75,
+            MAX_FREQ: 10000,
+            NODE_HEIGHT: 0.75,
+            BASE_Y: 0.85
+        };
+        const vizNodes = [];
+        for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+
+        const vizCanvas = document.getElementById('viz-canvas');
+        const vizCtx = vizCanvas.getContext('2d');
+
+        function vizSetupCanvas() {
+            if (!vizCtx) return;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = vizCanvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            vizCanvas.width = rect.width * dpr;
+            vizCanvas.height = rect.height * dpr;
+            vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function vizInitAudio() {
+            if (vizAudioCtx) return true;
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                vizAudioCtx = new AudioContextClass();
+                vizAnalyser = vizAudioCtx.createAnalyser();
+                vizAnalyser.fftSize = VIZ_CONFIG.FFT_SIZE;
+                vizAnalyser.smoothingTimeConstant = VIZ_CONFIG.SMOOTHING;
+                vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
+                return true;
+            } catch (e) {
+                console.warn('⚠️ Web Audio не поддерживается:', e.message);
+                return false;
+            }
+        }
+
+        function vizConnectAudio() {
+            if (!vizAudioCtx || !vizAnalyser) return false;
+            try {
+                if (!vizSourceNode) {
+                    vizSourceNode = vizAudioCtx.createMediaElementSource(audio);
+                    vizSourceNode.connect(vizAnalyser);
+                    // ВАЖНО: НЕ подключаем analyser к destination — пусть аудио играет нативно через HTMLAudioElement.
+                    // Это ключевой момент для iOS Safari — мы только «слушаем» аудио, а не перенаправляем его.
+                    vizConnected = true;
+                    console.log('✅ Viz connected to audio (iOS-safe mode)');
+                }
+                return true;
+            } catch (e) {
+                console.warn('⚠️ Viz connect error:', e.message);
+                return false;
+            }
+        }
+
+        function vizDraw() {
+            if (!vizCtx) return;
+            vizSetupCanvas();
+            const rect = vizCanvas.getBoundingClientRect();
+            const w = rect.width, h = rect.height;
+            vizCtx.clearRect(0, 0, w, h);
+            
+            if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(vizDraw); return; }
+            
+            vizAnalyser.getByteFrequencyData(vizFreqData);
+            const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
+            const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
+            
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                const ratio = i / (VIZ_CONFIG.NUM_NODES - 1);
+                const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
+                const val = vizFreqData[bin] / 255;
+                vizNodes[i].x = (i / (VIZ_CONFIG.NUM_NODES - 1)) * w;
+                vizNodes[i].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
+                vizNodes[i].y += (vizNodes[i].targetY - vizNodes[i].y) * 0.15;
+                vizNodes[i].energy = val;
+            }
+            
+            // Линии
+            vizCtx.lineWidth = 0.8;
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                for (let j = i + 1; j < VIZ_CONFIG.NUM_NODES; j++) {
+                    const dx = vizNodes[i].x - vizNodes[j].x;
+                    const dy = vizNodes[i].y - vizNodes[j].y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < VIZ_CONFIG.CONN_DISTANCE * VIZ_CONFIG.CONN_DISTANCE) {
+                        const dist = Math.sqrt(distSq);
+                        const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[i].energy + vizNodes[j].energy);
+                        vizCtx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                        vizCtx.beginPath();
+                        vizCtx.moveTo(vizNodes[i].x, vizNodes[i].y);
+                        vizCtx.lineTo(vizNodes[j].x, vizNodes[j].y);
+                        vizCtx.stroke();
+                    }
+                }
+            }
+            
+            // Точки
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                const n = vizNodes[i];
+                const r = 1.2 + n.energy * 3.5;
+                const alpha = 0.4 + n.energy * 0.6;
+                vizCtx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
+                vizCtx.shadowBlur = 6;
+                vizCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                vizCtx.beginPath();
+                vizCtx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                vizCtx.fill();
+                vizCtx.shadowBlur = 0;
+            }
+            
+            vizAnimId = requestAnimationFrame(vizDraw);
+        }
+
+        function vizStart() {
+            vizContainer.classList.add('active');
+            if (!vizInitAudio()) return;
+            
+            // iOS: resume AudioContext при пользовательском действии
+            if (vizAudioCtx.state === 'suspended') {
+                vizAudioCtx.resume().then(() => {
+                    console.log('✅ AudioContext resumed');
+                    vizConnectAudio();
+                }).catch(() => {});
+            } else {
+                vizConnectAudio();
+            }
+            
+            if (!vizIsRunning) {
+                vizIsRunning = true;
+                cancelAnimationFrame(vizAnimId);
+                vizDraw();
+                console.log('▶ Constellation Viz started');
+            }
+        }
+
+        function vizStop() {
+            vizContainer.classList.remove('active');
+            vizIsRunning = false;
+            cancelAnimationFrame(vizAnimId);
+            if (vizCtx) {
+                const rect = vizCanvas.getBoundingClientRect();
+                vizCtx.clearRect(0, 0, rect.width, rect.height);
+            }
+        }
+
+        // ========================================
+        // РАДИО ПЛЕЕР
+        // ========================================
+
         function startPlayback(station) {
             console.log(`🎵 Playing: ${station.stream}`); 
             playbackStarted = false; 
@@ -362,7 +518,9 @@
                     await audio.play(); 
                     console.log('✅ Playback started'); 
                     isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); startVisualizer(); updateStatus(true); 
+                    updatePlayButton(); 
+                    vizStart(); // Запускаем визуализатор безопасно
+                    updateStatus(true); 
                     errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
                     fetchMetadata(station.api); 
                     metadataInterval && clearInterval(metadataInterval);
@@ -373,7 +531,7 @@
 
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
-            stopVisualizer(); stopProgressAnimation(); updateStatus(false);
+            vizStop(); stopProgressAnimation(); updateStatus(false);
             metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
@@ -403,9 +561,6 @@
             } catch (e) { /* silent */ }
         }
 
-        function startVisualizer() { visualizer.classList.add('active'); }
-        function stopVisualizer() { visualizer.classList.remove('active'); }
-
         function setupEventListeners() {
             playBtn.addEventListener('click', togglePlay);
             prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
@@ -433,13 +588,12 @@
         try {
             initPlaceholders();
             setupEventListeners();
-            initStationsStatic(); // Мгновенный рендер
-            loadStationsBackground(); // Фоновая загрузка
+            initStationsStatic();
+            loadStationsBackground();
         } catch (e) {
             console.error("Init Error:", e);
         }
 
-        // Telegram Web App
         if (window.Telegram && window.Telegram.WebApp) {
             try {
                 const tg = window.Telegram.WebApp;
@@ -452,7 +606,8 @@
             } catch (e) { /* ignore */ }
         }
 
-        window.addEventListener('beforeunload', () => stopPlayback());
+        window.addEventListener('resize', vizSetupCanvas);
+        window.addEventListener('beforeunload', () => { stopPlayback(); });
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
     </script>
 </body>
