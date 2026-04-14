@@ -4,22 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Majestic Radio</title>
-    <!-- PWA & Mobile Meta -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
-    
-    <!-- Fonts & Telegram SDK -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-    
     <style>
-        /* ... весь твой CSS без изменений ... */
+        /* === Тот же стиль, без изменений === */
         :root {
             --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
             --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
@@ -199,7 +195,8 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline></audio>
+    <!-- Важно: crossorigin="anonymous" для CORS -->
+    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
         (function(){
@@ -237,11 +234,10 @@
             let stations = {}, currentStationKey = null, isPlaying = false;
             let metadataInterval = null, progressInterval = null;
             let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
-            let userInteracted = false; // флаг, что было касание
 
             const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-            // --- ФУНКЦИИ ---
+            // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
             function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
             
             function updateProgress(elapsed, duration) {
@@ -358,10 +354,10 @@
             }
 
             // ========================================
-            // ВИЗУАЛИЗАТОР (только после успешного старта)
+            // ВИЗУАЛИЗАТОР (с отказоустойчивостью)
             // ========================================
             let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
-            let vizFreqData = null, vizAnimId = null, vizIsRunning = false;
+            let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizEnabled = true;
             
             const VIZ_CONFIG = {
                 NUM_NODES: 48,
@@ -395,12 +391,13 @@
                     return true;
                 } catch (e) {
                     console.warn('Web Audio not supported');
+                    vizEnabled = false;
                     return false;
                 }
             }
 
             function vizConnect() {
-                if (!vizAudioCtx) return false;
+                if (!vizEnabled || !vizAudioCtx) return false;
                 if (vizSourceNode) {
                     try { vizSourceNode.disconnect(); } catch(e) {}
                     vizSourceNode = null;
@@ -415,13 +412,14 @@
                     vizAnalyser.connect(vizAudioCtx.destination);
                     return true;
                 } catch (e) {
-                    console.warn('Viz connect error:', e);
+                    console.warn('Viz connect error (probably CORS):', e);
+                    vizEnabled = false; // отключаем визуализатор навсегда
                     return false;
                 }
             }
 
             function vizDraw() {
-                if (!vizCtx) return;
+                if (!vizCtx || !vizEnabled) return;
                 vizSetupCanvas();
                 const rect = vizCanvas.getBoundingClientRect();
                 const w = rect.width, h = rect.height;
@@ -480,22 +478,30 @@
             }
 
             function vizStart() {
+                if (!vizEnabled) return;
                 vizContainer.classList.add('active');
                 if (!vizInitAudio()) return;
                 
-                // Активируем контекст, если suspended (важно для iOS)
                 if (vizAudioCtx.state === 'suspended') {
                     vizAudioCtx.resume().then(() => {
                         console.log('AudioContext resumed');
                         if (vizConnect() && !vizIsRunning) {
                             vizIsRunning = true;
                             vizDraw();
+                        } else {
+                            // если не удалось подключить, отключаем визуализацию
+                            vizContainer.classList.remove('active');
                         }
-                    }).catch(e => console.warn('resume error', e));
+                    }).catch(e => {
+                        console.warn('resume error', e);
+                        vizContainer.classList.remove('active');
+                    });
                 } else {
                     if (vizConnect() && !vizIsRunning) {
                         vizIsRunning = true;
                         vizDraw();
+                    } else {
+                        vizContainer.classList.remove('active');
                     }
                 }
             }
@@ -511,30 +517,26 @@
                 }
                 vizAnalyser = null;
                 vizFreqData = null;
+                // не сбрасываем vizEnabled, т.к. ошибка CORS постоянна
             }
 
             // ========================================
-            // ВОСПРОИЗВЕДЕНИЕ (максимально синхронно)
+            // ВОСПРОИЗВЕДЕНИЕ
             // ========================================
             function startPlayback(station) {
-                // Очищаем предыдущие ошибки
                 updateStatus(false, 'Загрузка...');
                 
-                // Важно: установка src должна быть синхронной в ответ на жест
                 audio.src = `${station.stream}?t=${Date.now()}`;
-                audio.load();
+                // не вызываем load() явно, play() сам загрузит
                 
-                // Вызываем play() немедленно
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.then(() => {
-                        console.log('Playback started successfully');
+                        console.log('Playback started');
                         isPlaying = true;
                         updatePlayButton();
                         updateStatus(true);
-                        // Запускаем визуализатор только после реального старта
-                        vizStart();
-                        // Запускаем метаданные
+                        vizStart(); // визуализатор может не включиться из-за CORS, но звук будет
                         fetchMetadata(station.api);
                         metadataInterval && clearInterval(metadataInterval);
                         metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
@@ -549,7 +551,6 @@
                         vizStop();
                     });
                 } else {
-                    // Старые браузеры
                     isPlaying = true;
                     updatePlayButton();
                     updateStatus(true);
@@ -574,11 +575,10 @@
                 if (isPlaying) {
                     stopPlayback();
                 } else {
-                    // Предварительно активируем AudioContext, если он ещё не создан
+                    // Активируем AudioContext в контексте жеста (для iOS)
                     if (!vizAudioCtx) {
                         vizInitAudio();
                     }
-                    // Пытаемся разбудить контекст в рамках жеста
                     if (vizAudioCtx && vizAudioCtx.state === 'suspended') {
                         vizAudioCtx.resume().catch(e => {});
                     }
@@ -609,7 +609,6 @@
             }
 
             function setupEventListeners() {
-                // Используем оба события для надёжности
                 const playHandler = (e) => {
                     e.preventDefault();
                     togglePlay();
@@ -623,7 +622,6 @@
                 burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
                 stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
                 
-                // Свайпы
                 let touchStartX = 0, touchStartY = 0;
                 stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; }, { passive: true });
                 stationsOverlay.addEventListener('touchend', (e) => { const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; if (diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY)) closeStations(); }, { passive: true });
@@ -636,13 +634,7 @@
                     if (Math.abs(diffX) > 50) diffX > 0 ? nextBtn.click() : prevBtn.click();
                 }, { passive: true });
                 
-                audio.addEventListener('playing', () => {
-                    updateStatus(true);
-                });
-                audio.addEventListener('pause', () => {
-                    if (!audio.src) return;
-                    // Если пауза не по нашей инициативе (буферизация)
-                });
+                audio.addEventListener('playing', () => updateStatus(true));
                 audio.addEventListener('error', (e) => {
                     console.warn('Audio error', e);
                     if (isPlaying) {
@@ -659,7 +651,6 @@
             initStationsStatic();
             loadStationsBackground();
 
-            // Telegram
             if (window.Telegram?.WebApp) {
                 try {
                     const tg = window.Telegram.WebApp;
