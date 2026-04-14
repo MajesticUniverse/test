@@ -386,7 +386,7 @@
         // 🔮 CONSTELLATION VISUALIZER
         // ========================================
         let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
-        let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizConnected = false;
+        let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizConnected = false, vizOutputConnected = false;
         
         const VIZ_CONFIG = {
             NUM_NODES: 48,
@@ -436,8 +436,12 @@
                     vizSourceNode = vizAudioCtx.createMediaElementSource(audio);
                     vizSourceNode.connect(vizAnalyser);
                     vizConnected = true;
-                    console.log('✅ Viz connected to audio (iOS-safe mode)');
                 }
+                if (!vizOutputConnected) {
+                    vizAnalyser.connect(vizAudioCtx.destination);
+                    vizOutputConnected = true;
+                }
+                console.log('✅ Viz connected to audio (iOS-safe mode)');
                 return true;
             } catch (e) {
                 console.warn('⚠️ Viz connect error:', e.message);
@@ -542,6 +546,7 @@
         async function startPlayback(station) {
             console.log(`🎵 Playing: ${station.stream}`);
             playbackStarted = false;
+            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
             debugLog('start_playback_requested', {
@@ -558,8 +563,16 @@
                 isPlaying = true; playbackStarted = true;
                 updatePlayButton();
                 vizStart();
-                updateStatus(true);
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                // Safari/iOS may resolve play() before a stable playing state.
+                errorTimeout = setTimeout(() => {
+                    if (!playbackStarted || audio.paused) {
+                        debugLog('playback_start_timeout', { playbackStarted, paused: audio.paused });
+                        isPlaying = false;
+                        updatePlayButton();
+                        vizStop();
+                        updateStatus(false);
+                    }
+                }, 8000);
                 fetchMetadata(station.api);
                 metadataInterval && clearInterval(metadataInterval);
                 metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
@@ -570,6 +583,9 @@
                     errorMessage: err?.message,
                     audioError: getAudioErrorInfo()
                 });
+                isPlaying = false;
+                updatePlayButton();
+                vizStop();
                 updateStatus(false);
             }
         }
