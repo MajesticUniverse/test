@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
     <style>
-        /* === Тот же стиль, без изменений === */
+        /* === Тот же стиль === */
         :root {
             --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
             --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
@@ -195,7 +195,7 @@
         </div>
     </div>
 
-    <!-- Важно: crossorigin="anonymous" для CORS -->
+    <!-- Аудио с CORS-атрибутом для визуализатора -->
     <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
@@ -234,10 +234,11 @@
             let stations = {}, currentStationKey = null, isPlaying = false;
             let metadataInterval = null, progressInterval = null;
             let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+            let userInteracted = false;
 
             const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-            // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+            // --- ФУНКЦИИ ---
             function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
             
             function updateProgress(elapsed, duration) {
@@ -265,6 +266,7 @@
                     statusBadge.innerHTML = '<span>В эфире</span>';
                 } else {
                     statusBadge.innerHTML = message ? `<span>${message}</span>` : '<span>Оффлайн</span>';
+                    if (message) statusBadge.classList.add('error');
                 }
             }
 
@@ -354,10 +356,11 @@
             }
 
             // ========================================
-            // ВИЗУАЛИЗАТОР (с отказоустойчивостью)
+            // ВИЗУАЛИЗАТОР (не мешает аудио)
             // ========================================
             let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
-            let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizEnabled = true;
+            let vizFreqData = null, vizAnimId = null, vizIsRunning = false;
+            let vizEnabled = true; // если false, визуализатор не пытается работать
             
             const VIZ_CONFIG = {
                 NUM_NODES: 48,
@@ -386,11 +389,12 @@
 
             function vizInitAudio() {
                 if (vizAudioCtx) return true;
+                if (!vizEnabled) return false;
                 try {
                     vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     return true;
                 } catch (e) {
-                    console.warn('Web Audio not supported');
+                    console.warn('Web Audio не поддерживается');
                     vizEnabled = false;
                     return false;
                 }
@@ -412,8 +416,9 @@
                     vizAnalyser.connect(vizAudioCtx.destination);
                     return true;
                 } catch (e) {
-                    console.warn('Viz connect error (probably CORS):', e);
-                    vizEnabled = false; // отключаем визуализатор навсегда
+                    console.warn('Ошибка подключения визуализатора (CORS или другое):', e);
+                    vizEnabled = false; // навсегда отключаем визуализатор
+                    updateStatus(isPlaying, 'Визуализатор недоступен');
                     return false;
                 }
             }
@@ -482,27 +487,25 @@
                 vizContainer.classList.add('active');
                 if (!vizInitAudio()) return;
                 
-                if (vizAudioCtx.state === 'suspended') {
-                    vizAudioCtx.resume().then(() => {
-                        console.log('AudioContext resumed');
-                        if (vizConnect() && !vizIsRunning) {
+                const tryConnect = () => {
+                    if (vizConnect()) {
+                        if (!vizIsRunning) {
                             vizIsRunning = true;
                             vizDraw();
-                        } else {
-                            // если не удалось подключить, отключаем визуализацию
-                            vizContainer.classList.remove('active');
                         }
-                    }).catch(e => {
+                    } else {
+                        vizContainer.classList.remove('active');
+                        // не мешаем аудио
+                    }
+                };
+
+                if (vizAudioCtx.state === 'suspended') {
+                    vizAudioCtx.resume().then(tryConnect).catch(e => {
                         console.warn('resume error', e);
                         vizContainer.classList.remove('active');
                     });
                 } else {
-                    if (vizConnect() && !vizIsRunning) {
-                        vizIsRunning = true;
-                        vizDraw();
-                    } else {
-                        vizContainer.classList.remove('active');
-                    }
+                    tryConnect();
                 }
             }
 
@@ -517,17 +520,16 @@
                 }
                 vizAnalyser = null;
                 vizFreqData = null;
-                // не сбрасываем vizEnabled, т.к. ошибка CORS постоянна
+                // vizEnabled не сбрасываем, чтобы не пытаться бесконечно
             }
 
             // ========================================
-            // ВОСПРОИЗВЕДЕНИЕ
+            // ВОСПРОИЗВЕДЕНИЕ (без привязки к визуализатору)
             // ========================================
             function startPlayback(station) {
                 updateStatus(false, 'Загрузка...');
                 
                 audio.src = `${station.stream}?t=${Date.now()}`;
-                // не вызываем load() явно, play() сам загрузит
                 
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
@@ -536,7 +538,8 @@
                         isPlaying = true;
                         updatePlayButton();
                         updateStatus(true);
-                        vizStart(); // визуализатор может не включиться из-за CORS, но звук будет
+                        // Пытаемся запустить визуализатор, но если не получится - не страшно
+                        vizStart();
                         fetchMetadata(station.api);
                         metadataInterval && clearInterval(metadataInterval);
                         metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
@@ -544,8 +547,8 @@
                         console.error('Play failed:', err);
                         isPlaying = false;
                         updatePlayButton();
-                        let errorMsg = 'Ошибка';
-                        if (err.name === 'NotAllowedError') errorMsg = 'Нажмите Play';
+                        let errorMsg = 'Ошибка воспроизведения';
+                        if (err.name === 'NotAllowedError') errorMsg = 'Нажмите Play (требуется жест)';
                         else if (err.name === 'NotSupportedError') errorMsg = 'Формат не поддерживается';
                         updateStatus(false, errorMsg);
                         vizStop();
@@ -575,8 +578,8 @@
                 if (isPlaying) {
                     stopPlayback();
                 } else {
-                    // Активируем AudioContext в контексте жеста (для iOS)
-                    if (!vizAudioCtx) {
+                    // Активируем AudioContext при касании (важно для iOS)
+                    if (!vizAudioCtx && vizEnabled) {
                         vizInitAudio();
                     }
                     if (vizAudioCtx && vizAudioCtx.state === 'suspended') {
