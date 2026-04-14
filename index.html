@@ -506,24 +506,27 @@
         // РАДИО ПЛЕЕР
         // ========================================
 
-        function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`); 
-            playbackStarted = false; 
+        async function startPlayback(station) {
+            console.log(`🎵 Playing: ${station.stream}`);
+            playbackStarted = false;
             audio.src = `${station.stream}?t=${Date.now()}`;
-            setTimeout(async () => {
-                try {
-                    await audio.play(); 
-                    console.log('✅ Playback started'); 
-                    isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); 
-                    vizStart();
-                    updateStatus(true); 
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(station.api); 
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                } catch (err) { console.error('❌ Playback error:', err); updateStatus(false); }
-            }, 150);
+            try {
+                // Важно: play() должен вызываться синхронно из пользовательского клика.
+                // setTimeout ломает user-gesture контекст в Safari/iOS/Telegram WebView.
+                await audio.play();
+                console.log('✅ Playback started');
+                isPlaying = true; playbackStarted = true;
+                updatePlayButton();
+                vizStart();
+                updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                fetchMetadata(station.api);
+                metadataInterval && clearInterval(metadataInterval);
+                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+            } catch (err) {
+                console.error('❌ Playback error:', err);
+                updateStatus(false);
+            }
         }
 
         function stopPlayback() {
