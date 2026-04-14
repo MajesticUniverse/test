@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Majestic Radio</title>
     <!-- PWA & Mobile Meta -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,6 +19,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
     
     <style>
+        /* ... весь твой CSS без изменений ... */
         :root {
             --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
             --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
@@ -73,7 +74,6 @@
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
-        /* === CONSTELLATION VISUALIZER — от нижнего края обложки вверх === */
         .viz-container {
             position: absolute;
             bottom: 0; left: 0; right: 0;
@@ -199,7 +199,7 @@
         </div>
     </div>
 
-    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    <audio id="audio-player" preload="none" playsinline></audio>
     
     <script>
         (function(){
@@ -234,9 +234,10 @@
             const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
 
             // --- СОСТОЯНИЕ ---
-            let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
-            let metadataInterval = null, progressInterval = null, errorTimeout = null;
+            let stations = {}, currentStationKey = null, isPlaying = false;
+            let metadataInterval = null, progressInterval = null;
             let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+            let userInteracted = false; // флаг, что было касание
 
             const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
@@ -261,10 +262,14 @@
 
             function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
             
-            function updateStatus(online) {
+            function updateStatus(online, message = '') {
                 statusBadge.classList.remove('online', 'error');
-                if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
-                else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
+                if (online) {
+                    statusBadge.classList.add('online');
+                    statusBadge.innerHTML = '<span>В эфире</span>';
+                } else {
+                    statusBadge.innerHTML = message ? `<span>${message}</span>` : '<span>Оффлайн</span>';
+                }
             }
 
             function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
@@ -306,10 +311,8 @@
                     try {
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 3000);
-                        
                         const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
                         clearTimeout(timeoutId);
-
                         if (response.ok) {
                             const data = await response.json();
                             let artUrl = DEFAULT_COVER_SVG;
@@ -327,15 +330,17 @@
                             if (stationId === currentStationKey) setCoverArt(artUrl);
                             renderStationsList();
                         }
-                    } catch (e) { /* Ошибки сети игнорируем */ }
+                    } catch (e) { /* ignore */ }
                 });
-
                 await Promise.all(promises);
             }
 
             function switchStation(key, autoPlay = true) {
                 const station = stations[key]; if (!station) return;
-                playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
+                currentStationKey = key;
+                stopPlayback();
+                setCoverArt(station.art);
+                renderStationsList();
                 if (autoPlay) startPlayback(station);
             }
 
@@ -353,10 +358,10 @@
             }
 
             // ========================================
-            // 🔮 CONSTELLATION VISUALIZER
+            // ВИЗУАЛИЗАТОР (только после успешного старта)
             // ========================================
             let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
-            let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizConnected = false;
+            let vizFreqData = null, vizAnimId = null, vizIsRunning = false;
             
             const VIZ_CONFIG = {
                 NUM_NODES: 48,
@@ -386,47 +391,31 @@
             function vizInitAudio() {
                 if (vizAudioCtx) return true;
                 try {
-                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                    vizAudioCtx = new AudioContextClass();
-                    // Не создаём analyser сразу — создадим при подключении
+                    vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     return true;
                 } catch (e) {
-                    console.warn('⚠️ Web Audio не поддерживается:', e.message);
+                    console.warn('Web Audio not supported');
                     return false;
                 }
             }
 
-            function vizConnectAudio() {
+            function vizConnect() {
                 if (!vizAudioCtx) return false;
-                // Если уже подключены, не делаем ничего
-                if (vizSourceNode && vizAnalyser) return true;
-                
+                if (vizSourceNode) {
+                    try { vizSourceNode.disconnect(); } catch(e) {}
+                    vizSourceNode = null;
+                }
                 try {
-                    // Если источник уже существует, но analyser нет – создаём заново
-                    if (vizSourceNode) {
-                        vizSourceNode.disconnect();
-                        vizSourceNode = null;
-                    }
                     vizAnalyser = vizAudioCtx.createAnalyser();
                     vizAnalyser.fftSize = VIZ_CONFIG.FFT_SIZE;
                     vizAnalyser.smoothingTimeConstant = VIZ_CONFIG.SMOOTHING;
                     vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
-                    
                     vizSourceNode = vizAudioCtx.createMediaElementSource(audio);
                     vizSourceNode.connect(vizAnalyser);
-                    vizAnalyser.connect(vizAudioCtx.destination); // обязательно!
-                    vizConnected = true;
-                    console.log('✅ Viz connected to audio');
+                    vizAnalyser.connect(vizAudioCtx.destination);
                     return true;
                 } catch (e) {
-                    console.warn('⚠️ Viz connect error:', e.message);
-                    // Возможно, audio уже подключён к другому контексту — пробуем пересоздать AudioContext
-                    if (e.name === 'InvalidStateError') {
-                        vizAudioCtx = null;
-                        if (vizInitAudio()) {
-                            return vizConnectAudio(); // рекурсивно пробуем снова
-                        }
-                    }
+                    console.warn('Viz connect error:', e);
                     return false;
                 }
             }
@@ -494,22 +483,18 @@
                 vizContainer.classList.add('active');
                 if (!vizInitAudio()) return;
                 
-                // Пробуем активировать контекст (если suspended)
+                // Активируем контекст, если suspended (важно для iOS)
                 if (vizAudioCtx.state === 'suspended') {
                     vizAudioCtx.resume().then(() => {
-                        console.log('✅ AudioContext resumed');
-                        vizConnectAudio();
-                        if (!vizIsRunning) {
+                        console.log('AudioContext resumed');
+                        if (vizConnect() && !vizIsRunning) {
                             vizIsRunning = true;
-                            cancelAnimationFrame(vizAnimId);
                             vizDraw();
                         }
                     }).catch(e => console.warn('resume error', e));
                 } else {
-                    vizConnectAudio();
-                    if (!vizIsRunning) {
+                    if (vizConnect() && !vizIsRunning) {
                         vizIsRunning = true;
-                        cancelAnimationFrame(vizAnimId);
                         vizDraw();
                     }
                 }
@@ -519,64 +504,56 @@
                 vizContainer.classList.remove('active');
                 vizIsRunning = false;
                 cancelAnimationFrame(vizAnimId);
-                if (vizCtx) {
-                    const rect = vizCanvas.getBoundingClientRect();
-                    vizCtx.clearRect(0, 0, rect.width, rect.height);
-                }
-                // Отключаем источник, чтобы при следующем старте не было конфликтов
+                if (vizCtx) vizCtx.clearRect(0, 0, vizCanvas.width, vizCanvas.height);
                 if (vizSourceNode) {
                     try { vizSourceNode.disconnect(); } catch(e) {}
                     vizSourceNode = null;
                 }
                 vizAnalyser = null;
                 vizFreqData = null;
-                vizConnected = false;
             }
 
             // ========================================
-            // РАДИО ПЛЕЕР
+            // ВОСПРОИЗВЕДЕНИЕ (максимально синхронно)
             // ========================================
-
             function startPlayback(station) {
-                console.log(`🎵 Playing: ${station.stream}`);
-                playbackStarted = false;
+                // Очищаем предыдущие ошибки
+                updateStatus(false, 'Загрузка...');
                 
-                // Устанавливаем src и сразу вызываем play() без setTimeout
+                // Важно: установка src должна быть синхронной в ответ на жест
                 audio.src = `${station.stream}?t=${Date.now()}`;
                 audio.load();
                 
+                // Вызываем play() немедленно
                 const playPromise = audio.play();
                 if (playPromise !== undefined) {
                     playPromise.then(() => {
-                        console.log('✅ Playback started');
+                        console.log('Playback started successfully');
                         isPlaying = true;
-                        playbackStarted = true;
                         updatePlayButton();
-                        vizStart();
                         updateStatus(true);
-                        errorTimeout && clearTimeout(errorTimeout);
+                        // Запускаем визуализатор только после реального старта
+                        vizStart();
+                        // Запускаем метаданные
                         fetchMetadata(station.api);
                         metadataInterval && clearInterval(metadataInterval);
                         metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                     }).catch(err => {
-                        console.error('❌ Playback error:', err);
-                        // Восстанавливаем состояние
+                        console.error('Play failed:', err);
                         isPlaying = false;
                         updatePlayButton();
+                        let errorMsg = 'Ошибка';
+                        if (err.name === 'NotAllowedError') errorMsg = 'Нажмите Play';
+                        else if (err.name === 'NotSupportedError') errorMsg = 'Формат не поддерживается';
+                        updateStatus(false, errorMsg);
                         vizStop();
-                        updateStatus(false);
-                        // Можно показать пользователю подсказку (только один раз)
-                        if (err.name === 'NotAllowedError') {
-                            alert('Нажмите Play ещё раз — для iOS требуется прямое касание.');
-                        }
                     });
                 } else {
-                    // Старые браузеры без промиса
+                    // Старые браузеры
                     isPlaying = true;
-                    playbackStarted = true;
                     updatePlayButton();
-                    vizStart();
                     updateStatus(true);
+                    vizStart();
                 }
             }
 
@@ -584,13 +561,11 @@
                 audio.pause();
                 audio.src = '';
                 isPlaying = false;
-                playbackStarted = false;
                 updatePlayButton();
                 vizStop();
                 stopProgressAnimation();
                 updateStatus(false);
                 metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
                 trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
             }
 
@@ -599,6 +574,14 @@
                 if (isPlaying) {
                     stopPlayback();
                 } else {
+                    // Предварительно активируем AudioContext, если он ещё не создан
+                    if (!vizAudioCtx) {
+                        vizInitAudio();
+                    }
+                    // Пытаемся разбудить контекст в рамках жеста
+                    if (vizAudioCtx && vizAudioCtx.state === 'suspended') {
+                        vizAudioCtx.resume().catch(e => {});
+                    }
                     startPlayback(stations[currentStationKey]);
                 }
             }
@@ -626,76 +609,67 @@
             }
 
             function setupEventListeners() {
-                playBtn.addEventListener('click', togglePlay);
+                // Используем оба события для надёжности
+                const playHandler = (e) => {
+                    e.preventDefault();
+                    togglePlay();
+                };
+                playBtn.addEventListener('click', playHandler);
+                playBtn.addEventListener('touchend', playHandler, { passive: false });
+                
                 prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
                 nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
+                
                 burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
                 stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
                 
-                let touchStartX = 0, touchStartY = 0, isSwiping = false;
-                stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
-                stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
+                // Свайпы
+                let touchStartX = 0, touchStartY = 0;
+                stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; }, { passive: true });
+                stationsOverlay.addEventListener('touchend', (e) => { const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; if (diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY)) closeStations(); }, { passive: true });
                 
-                let globalStartX = 0, globalStartY = 0;
-                document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
+                let globalStartX = 0;
+                document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; }, { passive: true });
                 document.addEventListener('touchend', (e) => {
                     if (stationsOpen) return;
-                    const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
-                    Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
+                    const diffX = globalStartX - e.changedTouches[0].screenX;
+                    if (Math.abs(diffX) > 50) diffX > 0 ? nextBtn.click() : prevBtn.click();
                 }, { passive: true });
                 
-                audio.addEventListener('error', (e) => { 
-                    console.warn('🔊 Audio error', e);
-                    if (isPlaying) {
-                        updateStatus(false);
-                        // Можно попробовать перезапустить через несколько секунд
-                    }
-                });
-                audio.addEventListener('playing', () => { 
-                    playbackStarted = true; 
-                    updateStatus(true); 
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); 
+                audio.addEventListener('playing', () => {
+                    updateStatus(true);
                 });
                 audio.addEventListener('pause', () => {
+                    if (!audio.src) return;
+                    // Если пауза не по нашей инициативе (буферизация)
+                });
+                audio.addEventListener('error', (e) => {
+                    console.warn('Audio error', e);
                     if (isPlaying) {
-                        // Если пауза произошла не по нашей воле (буферизация), можем попробовать возобновить
-                        if (playbackStarted) {
-                            // Буферизация – не считаем оффлайном, просто ждём
-                        } else {
-                            updateStatus(false);
-                        }
+                        updateStatus(false, 'Ошибка потока');
+                        isPlaying = false;
+                        updatePlayButton();
                     }
                 });
             }
 
-            // --- ЗАПУСК ---
-            try {
-                initPlaceholders();
-                setupEventListeners();
-                initStationsStatic();
-                loadStationsBackground();
-            } catch (e) {
-                console.error("Init Error:", e);
-            }
+            // --- ИНИЦИАЛИЗАЦИЯ ---
+            initPlaceholders();
+            setupEventListeners();
+            initStationsStatic();
+            loadStationsBackground();
 
-            // Telegram WebApp интеграция
-            if (window.Telegram && window.Telegram.WebApp) {
+            // Telegram
+            if (window.Telegram?.WebApp) {
                 try {
                     const tg = window.Telegram.WebApp;
                     tg.ready();
-                    tg.expand && tg.expand();
-                    if (tg.themeParams) {
-                        if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
-                        if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
-                    }
-                } catch (e) { /* ignore */ }
+                    tg.expand?.();
+                } catch (e) {}
             }
 
             window.addEventListener('resize', vizSetupCanvas);
-            window.addEventListener('beforeunload', () => { stopPlayback(); });
-            
-            // Экспорт для отладки
-            window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+            window.addEventListener('beforeunload', () => stopPlayback());
         })();
     </script>
 </body>
