@@ -202,482 +202,501 @@
     <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
-        // --- КОНФИГУРАЦИЯ ---
-        const STREAM_URLS = {
-            liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
-            drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
-            psy_chill: 'https://majesticradio.duckdns.org/listen/psy_chill/psychill.mp3',
-            old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',
-            progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',
-            psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',
-            dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'
-        };
-        const BASE_URL = 'https://majesticradio.duckdns.org';
-        const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
-        const STATION_NAMES = {
-            liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
-            old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
-        };
+        (function(){
+            "use strict";
 
-        // --- ЭЛЕМЕНТЫ ---
-        const audio = document.getElementById('audio-player');
-        const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
-        const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
-        const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
-        const vizContainer = document.getElementById('viz-container'), trackTitleEl = document.getElementById('track-title');
-        const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
-        const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
-        const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
-        const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
+            // --- КОНФИГУРАЦИЯ ---
+            const STREAM_URLS = {
+                liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
+                drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
+                psy_chill: 'https://majesticradio.duckdns.org/listen/psy_chill/psychill.mp3',
+                old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',
+                progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',
+                psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',
+                dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'
+            };
+            const BASE_URL = 'https://majesticradio.duckdns.org';
+            const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
+            const STATION_NAMES = {
+                liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
+                old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
+            };
 
-        // --- СОСТОЯНИЕ ---
-        let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
-        let metadataInterval = null, progressInterval = null, errorTimeout = null;
-        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
-        const PLAYBACK_DEBUG = true;
+            // --- ЭЛЕМЕНТЫ ---
+            const audio = document.getElementById('audio-player');
+            const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
+            const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
+            const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
+            const vizContainer = document.getElementById('viz-container'), trackTitleEl = document.getElementById('track-title');
+            const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
+            const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
+            const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
+            const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
 
-        const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
+            // --- СОСТОЯНИЕ ---
+            let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
+            let metadataInterval = null, progressInterval = null, errorTimeout = null;
+            let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
 
-        // --- ФУНКЦИИ ---
-        function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
-        
-        function updateProgress(elapsed, duration) {
-            if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
-            progressContainer.classList.add('active');
-            const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
-            progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
-        }
+            const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        function startProgressAnimation() {
-            progressInterval && clearInterval(progressInterval);
-            progressInterval = setInterval(() => {
-                if (!isPlaying || !trackData.duration) return;
-                const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
-                if (elapsed < trackData.duration) updateProgress(elapsed, trackData.duration);
-            }, 500);
-        }
-
-        function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
-        
-        function updateStatus(online) {
-            statusBadge.classList.remove('online', 'error');
-            if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
-            else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
-        }
-
-        function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
-        
-        function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
-        function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
-        function toggleStations() { stationsOpen ? closeStations() : openStations(); }
-
-        function renderStationsList() {
-            if (!stationsListEl) return;
-            const keys = Object.keys(stations);
-            if (keys.length === 0) {
-                stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>';
-                return;
+            // --- ФУНКЦИИ ---
+            function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
+            
+            function updateProgress(elapsed, duration) {
+                if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
+                progressContainer.classList.add('active');
+                const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
+                progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
             }
-            stationsListEl.innerHTML = '';
-            keys.forEach((key) => {
-                const station = stations[key];
-                const btn = document.createElement('button');
-                btn.className = `station-item${key === currentStationKey ? ' active' : ''}`;
-                btn.innerHTML = `<span class="station-dot"></span><span>${station.name}</span>`;
-                btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); });
-                stationsListEl.appendChild(btn);
-            });
-        }
 
-        function initStationsStatic() {
-            stations = {};
-            STATION_IDS.forEach((id) => {
-                stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
-            });
-            renderStationsList();
-            currentStationKey = STATION_IDS[0];
-            setCoverArt(DEFAULT_COVER_SVG);
-        }
+            function startProgressAnimation() {
+                progressInterval && clearInterval(progressInterval);
+                progressInterval = setInterval(() => {
+                    if (!isPlaying || !trackData.duration) return;
+                    const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
+                    if (elapsed < trackData.duration) updateProgress(elapsed, trackData.duration);
+                }, 500);
+            }
 
-        async function loadStationsBackground() {
-            const promises = STATION_IDS.map(async (stationId) => {
+            function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
+            
+            function updateStatus(online) {
+                statusBadge.classList.remove('online', 'error');
+                if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
+                else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
+            }
+
+            function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
+            
+            function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
+            function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
+            function toggleStations() { stationsOpen ? closeStations() : openStations(); }
+
+            function renderStationsList() {
+                if (!stationsListEl) return;
+                const keys = Object.keys(stations);
+                if (keys.length === 0) {
+                    stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>';
+                    return;
+                }
+                stationsListEl.innerHTML = '';
+                keys.forEach((key) => {
+                    const station = stations[key];
+                    const btn = document.createElement('button');
+                    btn.className = `station-item${key === currentStationKey ? ' active' : ''}`;
+                    btn.innerHTML = `<span class="station-dot"></span><span>${station.name}</span>`;
+                    btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); });
+                    stationsListEl.appendChild(btn);
+                });
+            }
+
+            function initStationsStatic() {
+                stations = {};
+                STATION_IDS.forEach((id) => {
+                    stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
+                });
+                renderStationsList();
+                currentStationKey = STATION_IDS[0];
+                setCoverArt(DEFAULT_COVER_SVG);
+            }
+
+            async function loadStationsBackground() {
+                const promises = STATION_IDS.map(async (stationId) => {
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 3000);
+                        
+                        const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            let artUrl = DEFAULT_COVER_SVG;
+                            if (data.now_playing?.song?.art?.trim()) {
+                                artUrl = data.now_playing.song.art;
+                                if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
+                            } else if (data.station?.front_art?.trim()) {
+                                artUrl = data.station.front_art;
+                                if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
+                            }
+                            if (stations[stationId]) {
+                                stations[stationId].name = data.station?.name || stations[stationId].name;
+                                stations[stationId].art = artUrl;
+                            }
+                            if (stationId === currentStationKey) setCoverArt(artUrl);
+                            renderStationsList();
+                        }
+                    } catch (e) { /* Ошибки сети игнорируем */ }
+                });
+
+                await Promise.all(promises);
+            }
+
+            function switchStation(key, autoPlay = true) {
+                const station = stations[key]; if (!station) return;
+                playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
+                if (autoPlay) startPlayback(station);
+            }
+
+            function setCoverArt(artUrl) {
+                if (!coverArt) return;
+                if (artUrl?.trim()) {
+                    const img = new Image();
+                    img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
+                    img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
+                    img.src = artUrl;
+                } else { 
+                    coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; 
+                    coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
+                }
+            }
+
+            // ========================================
+            // 🔮 CONSTELLATION VISUALIZER
+            // ========================================
+            let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
+            let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizConnected = false;
+            
+            const VIZ_CONFIG = {
+                NUM_NODES: 48,
+                CONN_DISTANCE: 45,
+                FFT_SIZE: 2048,
+                SMOOTHING: 0.75,
+                MAX_FREQ: 10000,
+                NODE_HEIGHT: 0.85,
+                BASE_Y: 0.99
+            };
+            const vizNodes = [];
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+
+            const vizCanvas = document.getElementById('viz-canvas');
+            const vizCtx = vizCanvas.getContext('2d');
+
+            function vizSetupCanvas() {
+                if (!vizCtx) return;
+                const dpr = window.devicePixelRatio || 1;
+                const rect = vizCanvas.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return;
+                vizCanvas.width = rect.width * dpr;
+                vizCanvas.height = rect.height * dpr;
+                vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+
+            function vizInitAudio() {
+                if (vizAudioCtx) return true;
                 try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000);
-                    
-                    const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    vizAudioCtx = new AudioContextClass();
+                    // Не создаём analyser сразу — создадим при подключении
+                    return true;
+                } catch (e) {
+                    console.warn('⚠️ Web Audio не поддерживается:', e.message);
+                    return false;
+                }
+            }
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        let artUrl = DEFAULT_COVER_SVG;
-                        if (data.now_playing?.song?.art?.trim()) {
-                            artUrl = data.now_playing.song.art;
-                            if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
-                        } else if (data.station?.front_art?.trim()) {
-                            artUrl = data.station.front_art;
-                            if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
-                        }
-                        if (stations[stationId]) {
-                            stations[stationId].name = data.station?.name || stations[stationId].name;
-                            stations[stationId].art = artUrl;
-                        }
-                        if (stationId === currentStationKey) setCoverArt(artUrl);
-                        renderStationsList();
+            function vizConnectAudio() {
+                if (!vizAudioCtx) return false;
+                // Если уже подключены, не делаем ничего
+                if (vizSourceNode && vizAnalyser) return true;
+                
+                try {
+                    // Если источник уже существует, но analyser нет – создаём заново
+                    if (vizSourceNode) {
+                        vizSourceNode.disconnect();
+                        vizSourceNode = null;
                     }
-                } catch (e) { /* Ошибки сети игнорируем */ }
-            });
-
-            await Promise.all(promises);
-        }
-
-        function debugLog(event, extra = {}) {
-            if (!PLAYBACK_DEBUG) return;
-            const snapshot = {
-                event,
-                station: currentStationKey,
-                src: audio.currentSrc || audio.src,
-                readyState: audio.readyState,
-                networkState: audio.networkState,
-                paused: audio.paused,
-                ended: audio.ended,
-                currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime.toFixed(2) : 'n/a',
-                ...extra
-            };
-            console.log('[PLAYBACK_DEBUG]', snapshot);
-        }
-
-        function getAudioErrorInfo() {
-            if (!audio.error) return null;
-            const codeMap = {
-                1: 'MEDIA_ERR_ABORTED',
-                2: 'MEDIA_ERR_NETWORK',
-                3: 'MEDIA_ERR_DECODE',
-                4: 'MEDIA_ERR_SRC_NOT_SUPPORTED'
-            };
-            return {
-                code: audio.error.code,
-                codeName: codeMap[audio.error.code] || 'UNKNOWN_MEDIA_ERR',
-                message: audio.error.message || 'No details from browser'
-            };
-        }
-
-        function switchStation(key, autoPlay = true) {
-            const station = stations[key]; if (!station) return;
-            playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
-            debugLog('switch_station', { key, autoPlay, stream: station.stream });
-            if (autoPlay) startPlayback(station);
-        }
-
-        function setCoverArt(artUrl) {
-            if (!coverArt) return;
-            if (artUrl?.trim()) {
-                const img = new Image();
-                img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.src = artUrl;
-            } else { 
-                coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; 
-                coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
-            }
-        }
-
-        // ========================================
-        // 🔮 CONSTELLATION VISUALIZER
-        // ========================================
-        let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
-        let vizFreqData = null, vizAnimId = null, vizIsRunning = false, vizConnected = false, vizOutputConnected = false;
-        
-        const VIZ_CONFIG = {
-            NUM_NODES: 48,
-            CONN_DISTANCE: 45,
-            FFT_SIZE: 2048,
-            SMOOTHING: 0.75,
-            MAX_FREQ: 10000,
-            NODE_HEIGHT: 0.85,
-            BASE_Y: 0.99
-        };
-        const vizNodes = [];
-        for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
-
-        const vizCanvas = document.getElementById('viz-canvas');
-        const vizCtx = vizCanvas.getContext('2d');
-
-        function vizSetupCanvas() {
-            if (!vizCtx) return;
-            const dpr = window.devicePixelRatio || 1;
-            const rect = vizCanvas.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return;
-            vizCanvas.width = rect.width * dpr;
-            vizCanvas.height = rect.height * dpr;
-            vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        }
-
-        function vizInitAudio() {
-            if (vizAudioCtx) return true;
-            try {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                vizAudioCtx = new AudioContextClass();
-                vizAnalyser = vizAudioCtx.createAnalyser();
-                vizAnalyser.fftSize = VIZ_CONFIG.FFT_SIZE;
-                vizAnalyser.smoothingTimeConstant = VIZ_CONFIG.SMOOTHING;
-                vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
-                return true;
-            } catch (e) {
-                console.warn('⚠️ Web Audio не поддерживается:', e.message);
-                return false;
-            }
-        }
-
-        function vizConnectAudio() {
-            if (!vizAudioCtx || !vizAnalyser) return false;
-            try {
-                if (!vizSourceNode) {
+                    vizAnalyser = vizAudioCtx.createAnalyser();
+                    vizAnalyser.fftSize = VIZ_CONFIG.FFT_SIZE;
+                    vizAnalyser.smoothingTimeConstant = VIZ_CONFIG.SMOOTHING;
+                    vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
+                    
                     vizSourceNode = vizAudioCtx.createMediaElementSource(audio);
                     vizSourceNode.connect(vizAnalyser);
+                    vizAnalyser.connect(vizAudioCtx.destination); // обязательно!
                     vizConnected = true;
+                    console.log('✅ Viz connected to audio');
+                    return true;
+                } catch (e) {
+                    console.warn('⚠️ Viz connect error:', e.message);
+                    // Возможно, audio уже подключён к другому контексту — пробуем пересоздать AudioContext
+                    if (e.name === 'InvalidStateError') {
+                        vizAudioCtx = null;
+                        if (vizInitAudio()) {
+                            return vizConnectAudio(); // рекурсивно пробуем снова
+                        }
+                    }
+                    return false;
                 }
-                if (!vizOutputConnected) {
-                    vizAnalyser.connect(vizAudioCtx.destination);
-                    vizOutputConnected = true;
-                }
-                console.log('✅ Viz connected to audio (iOS-safe mode)');
-                return true;
-            } catch (e) {
-                console.warn('⚠️ Viz connect error:', e.message);
-                return false;
             }
-        }
 
-        function vizDraw() {
-            if (!vizCtx) return;
-            vizSetupCanvas();
-            const rect = vizCanvas.getBoundingClientRect();
-            const w = rect.width, h = rect.height;
-            vizCtx.clearRect(0, 0, w, h);
-            
-            if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(vizDraw); return; }
-            
-            vizAnalyser.getByteFrequencyData(vizFreqData);
-            const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
-            const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
-            
-            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
-                const ratio = i / (VIZ_CONFIG.NUM_NODES - 1);
-                const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
-                const val = vizFreqData[bin] / 255;
-                vizNodes[i].x = (i / (VIZ_CONFIG.NUM_NODES - 1)) * w;
-                vizNodes[i].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
-                vizNodes[i].y += (vizNodes[i].targetY - vizNodes[i].y) * 0.15;
-                vizNodes[i].energy = val;
+            function vizDraw() {
+                if (!vizCtx) return;
+                vizSetupCanvas();
+                const rect = vizCanvas.getBoundingClientRect();
+                const w = rect.width, h = rect.height;
+                vizCtx.clearRect(0, 0, w, h);
+                
+                if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(vizDraw); return; }
+                
+                vizAnalyser.getByteFrequencyData(vizFreqData);
+                const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
+                const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
+                
+                for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                    const ratio = i / (VIZ_CONFIG.NUM_NODES - 1);
+                    const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
+                    const val = vizFreqData[bin] / 255;
+                    vizNodes[i].x = (i / (VIZ_CONFIG.NUM_NODES - 1)) * w;
+                    vizNodes[i].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
+                    vizNodes[i].y += (vizNodes[i].targetY - vizNodes[i].y) * 0.15;
+                    vizNodes[i].energy = val;
+                }
+                
+                // Линии
+                vizCtx.lineWidth = 0.8;
+                for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                    for (let j = i + 1; j < VIZ_CONFIG.NUM_NODES; j++) {
+                        const dx = vizNodes[i].x - vizNodes[j].x;
+                        const dy = vizNodes[i].y - vizNodes[j].y;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq < VIZ_CONFIG.CONN_DISTANCE * VIZ_CONFIG.CONN_DISTANCE) {
+                            const dist = Math.sqrt(distSq);
+                            const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[i].energy + vizNodes[j].energy);
+                            vizCtx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                            vizCtx.beginPath();
+                            vizCtx.moveTo(vizNodes[i].x, vizNodes[i].y);
+                            vizCtx.lineTo(vizNodes[j].x, vizNodes[j].y);
+                            vizCtx.stroke();
+                        }
+                    }
+                }
+                
+                // Точки
+                for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                    const n = vizNodes[i];
+                    const r = 1.2 + n.energy * 3.5;
+                    const alpha = 0.4 + n.energy * 0.6;
+                    vizCtx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
+                    vizCtx.shadowBlur = 6;
+                    vizCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    vizCtx.beginPath();
+                    vizCtx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    vizCtx.fill();
+                    vizCtx.shadowBlur = 0;
+                }
+                
+                vizAnimId = requestAnimationFrame(vizDraw);
             }
-            
-            // Линии
-            vizCtx.lineWidth = 0.8;
-            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
-                for (let j = i + 1; j < VIZ_CONFIG.NUM_NODES; j++) {
-                    const dx = vizNodes[i].x - vizNodes[j].x;
-                    const dy = vizNodes[i].y - vizNodes[j].y;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < VIZ_CONFIG.CONN_DISTANCE * VIZ_CONFIG.CONN_DISTANCE) {
-                        const dist = Math.sqrt(distSq);
-                        const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[i].energy + vizNodes[j].energy);
-                        vizCtx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
-                        vizCtx.beginPath();
-                        vizCtx.moveTo(vizNodes[i].x, vizNodes[i].y);
-                        vizCtx.lineTo(vizNodes[j].x, vizNodes[j].y);
-                        vizCtx.stroke();
+
+            function vizStart() {
+                vizContainer.classList.add('active');
+                if (!vizInitAudio()) return;
+                
+                // Пробуем активировать контекст (если suspended)
+                if (vizAudioCtx.state === 'suspended') {
+                    vizAudioCtx.resume().then(() => {
+                        console.log('✅ AudioContext resumed');
+                        vizConnectAudio();
+                        if (!vizIsRunning) {
+                            vizIsRunning = true;
+                            cancelAnimationFrame(vizAnimId);
+                            vizDraw();
+                        }
+                    }).catch(e => console.warn('resume error', e));
+                } else {
+                    vizConnectAudio();
+                    if (!vizIsRunning) {
+                        vizIsRunning = true;
+                        cancelAnimationFrame(vizAnimId);
+                        vizDraw();
                     }
                 }
             }
-            
-            // Точки
-            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
-                const n = vizNodes[i];
-                const r = 1.2 + n.energy * 3.5;
-                const alpha = 0.4 + n.energy * 0.6;
-                vizCtx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
-                vizCtx.shadowBlur = 6;
-                vizCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                vizCtx.beginPath();
-                vizCtx.arc(n.x, n.y, r, 0, Math.PI * 2);
-                vizCtx.fill();
-                vizCtx.shadowBlur = 0;
-            }
-            
-            vizAnimId = requestAnimationFrame(vizDraw);
-        }
 
-        function vizStart() {
-            vizContainer.classList.add('active');
-            if (!vizInitAudio()) return;
-            
-            if (vizAudioCtx.state === 'suspended') {
-                vizAudioCtx.resume().then(() => {
-                    console.log('✅ AudioContext resumed');
-                    vizConnectAudio();
-                }).catch(() => {});
-            } else {
-                vizConnectAudio();
-            }
-            
-            if (!vizIsRunning) {
-                vizIsRunning = true;
+            function vizStop() {
+                vizContainer.classList.remove('active');
+                vizIsRunning = false;
                 cancelAnimationFrame(vizAnimId);
-                vizDraw();
-                console.log('▶ Constellation Viz started');
+                if (vizCtx) {
+                    const rect = vizCanvas.getBoundingClientRect();
+                    vizCtx.clearRect(0, 0, rect.width, rect.height);
+                }
+                // Отключаем источник, чтобы при следующем старте не было конфликтов
+                if (vizSourceNode) {
+                    try { vizSourceNode.disconnect(); } catch(e) {}
+                    vizSourceNode = null;
+                }
+                vizAnalyser = null;
+                vizFreqData = null;
+                vizConnected = false;
             }
-        }
 
-        function vizStop() {
-            vizContainer.classList.remove('active');
-            vizIsRunning = false;
-            cancelAnimationFrame(vizAnimId);
-            if (vizCtx) {
-                const rect = vizCanvas.getBoundingClientRect();
-                vizCtx.clearRect(0, 0, rect.width, rect.height);
-            }
-        }
+            // ========================================
+            // РАДИО ПЛЕЕР
+            // ========================================
 
-        // ========================================
-        // РАДИО ПЛЕЕР
-        // ========================================
-
-        async function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`);
-            playbackStarted = false;
-            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-            audio.src = `${station.stream}?t=${Date.now()}`;
-            audio.load();
-            debugLog('start_playback_requested', {
-                stream: station.stream,
-                userActivation: !!navigator.userActivation?.isActive,
-                userHasBeenActive: !!navigator.userActivation?.hasBeenActive
-            });
-            try {
-                // Важно: play() должен вызываться синхронно из пользовательского клика.
-                // setTimeout ломает user-gesture контекст в Safari/iOS/Telegram WebView.
-                await audio.play();
-                console.log('✅ Playback started');
-                debugLog('playback_started');
-                isPlaying = true; playbackStarted = true;
-                updatePlayButton();
-                vizStart();
-                // Safari/iOS may resolve play() before a stable playing state.
-                errorTimeout = setTimeout(() => {
-                    if (!playbackStarted || audio.paused) {
-                        debugLog('playback_start_timeout', { playbackStarted, paused: audio.paused });
+            function startPlayback(station) {
+                console.log(`🎵 Playing: ${station.stream}`);
+                playbackStarted = false;
+                
+                // Устанавливаем src и сразу вызываем play() без setTimeout
+                audio.src = `${station.stream}?t=${Date.now()}`;
+                audio.load();
+                
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log('✅ Playback started');
+                        isPlaying = true;
+                        playbackStarted = true;
+                        updatePlayButton();
+                        vizStart();
+                        updateStatus(true);
+                        errorTimeout && clearTimeout(errorTimeout);
+                        fetchMetadata(station.api);
+                        metadataInterval && clearInterval(metadataInterval);
+                        metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                    }).catch(err => {
+                        console.error('❌ Playback error:', err);
+                        // Восстанавливаем состояние
                         isPlaying = false;
                         updatePlayButton();
                         vizStop();
                         updateStatus(false);
-                    }
-                }, 8000);
-                fetchMetadata(station.api);
-                metadataInterval && clearInterval(metadataInterval);
-                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-            } catch (err) {
-                console.error('❌ Playback error:', err);
-                debugLog('playback_start_failed', {
-                    errorName: err?.name,
-                    errorMessage: err?.message,
-                    audioError: getAudioErrorInfo()
-                });
+                        // Можно показать пользователю подсказку (только один раз)
+                        if (err.name === 'NotAllowedError') {
+                            alert('Нажмите Play ещё раз — для iOS требуется прямое касание.');
+                        }
+                    });
+                } else {
+                    // Старые браузеры без промиса
+                    isPlaying = true;
+                    playbackStarted = true;
+                    updatePlayButton();
+                    vizStart();
+                    updateStatus(true);
+                }
+            }
+
+            function stopPlayback() {
+                audio.pause();
+                audio.src = '';
                 isPlaying = false;
+                playbackStarted = false;
                 updatePlayButton();
                 vizStop();
+                stopProgressAnimation();
                 updateStatus(false);
+                metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
             }
-        }
 
-        function stopPlayback() {
-            audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
-            vizStop(); stopProgressAnimation(); updateStatus(false);
-            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
-            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
-        }
-
-        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
-        
-        function updatePlayButton() { 
-            playIcon.style.display = isPlaying ? 'none' : 'block'; 
-            pauseIcon.style.display = isPlaying ? 'block' : 'none'; 
-            coverArt.classList.toggle('playing', isPlaying); 
-        }
-
-        async function fetchMetadata(apiUrl) {
-            if (!isPlaying) return;
-            try {
-                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
-                if (!response.ok) return;
-                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
-                if (song) {
-                    trackTitleEl.textContent = song.title || 'Unknown Track'; 
-                    trackArtistEl.textContent = song.artist || 'Unknown Artist';
-                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
+            function togglePlay() {
+                if (!currentStationKey || !stations[currentStationKey]) return;
+                if (isPlaying) {
+                    stopPlayback();
+                } else {
+                    startPlayback(stations[currentStationKey]);
                 }
-                if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) { /* silent */ }
-        }
+            }
+            
+            function updatePlayButton() { 
+                playIcon.style.display = isPlaying ? 'none' : 'block'; 
+                pauseIcon.style.display = isPlaying ? 'block' : 'none'; 
+                coverArt.classList.toggle('playing', isPlaying); 
+            }
 
-        function setupEventListeners() {
-            playBtn.addEventListener('click', togglePlay);
-            prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
-            nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
-            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
-            stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
-            
-            let touchStartX = 0, touchStartY = 0, isSwiping = false;
-            stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
-            stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
-            
-            let globalStartX = 0, globalStartY = 0;
-            document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
-            document.addEventListener('touchend', (e) => {
-                if (stationsOpen) return;
-                const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
-                Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
-            }, { passive: true });
-            
-            ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'playing', 'pause', 'stalled', 'waiting', 'suspend', 'abort', 'emptied', 'ended']
-                .forEach((eventName) => {
-                    audio.addEventListener(eventName, () => debugLog(`audio_${eventName}`));
+            async function fetchMetadata(apiUrl) {
+                if (!isPlaying) return;
+                try {
+                    const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
+                    if (!response.ok) return;
+                    const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
+                    if (song) {
+                        trackTitleEl.textContent = song.title || 'Unknown Track'; 
+                        trackArtistEl.textContent = song.artist || 'Unknown Artist';
+                        trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
+                        if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
+                    }
+                    if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
+                } catch (e) { /* silent */ }
+            }
+
+            function setupEventListeners() {
+                playBtn.addEventListener('click', togglePlay);
+                prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
+                nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
+                burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
+                stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
+                
+                let touchStartX = 0, touchStartY = 0, isSwiping = false;
+                stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
+                stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
+                
+                let globalStartX = 0, globalStartY = 0;
+                document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
+                document.addEventListener('touchend', (e) => {
+                    if (stationsOpen) return;
+                    const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
+                    Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
+                }, { passive: true });
+                
+                audio.addEventListener('error', (e) => { 
+                    console.warn('🔊 Audio error', e);
+                    if (isPlaying) {
+                        updateStatus(false);
+                        // Можно попробовать перезапустить через несколько секунд
+                    }
                 });
-            audio.addEventListener('error', () => {
-                const errInfo = getAudioErrorInfo();
-                console.log('🔊 Audio error', errInfo);
-                debugLog('audio_error', { errInfo });
-            });
-            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
-        }
+                audio.addEventListener('playing', () => { 
+                    playbackStarted = true; 
+                    updateStatus(true); 
+                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); 
+                });
+                audio.addEventListener('pause', () => {
+                    if (isPlaying) {
+                        // Если пауза произошла не по нашей воле (буферизация), можем попробовать возобновить
+                        if (playbackStarted) {
+                            // Буферизация – не считаем оффлайном, просто ждём
+                        } else {
+                            updateStatus(false);
+                        }
+                    }
+                });
+            }
 
-        // --- ЗАПУСК ---
-        try {
-            initPlaceholders();
-            setupEventListeners();
-            initStationsStatic();
-            loadStationsBackground();
-        } catch (e) {
-            console.error("Init Error:", e);
-        }
-
-        if (window.Telegram && window.Telegram.WebApp) {
+            // --- ЗАПУСК ---
             try {
-                const tg = window.Telegram.WebApp;
-                tg.ready();
-                tg.expand && tg.expand();
-                if (tg.themeParams) {
-                    if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
-                    if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
-                }
-            } catch (e) { /* ignore */ }
-        }
+                initPlaceholders();
+                setupEventListeners();
+                initStationsStatic();
+                loadStationsBackground();
+            } catch (e) {
+                console.error("Init Error:", e);
+            }
 
-        window.addEventListener('resize', vizSetupCanvas);
-        window.addEventListener('beforeunload', () => { stopPlayback(); });
-        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+            // Telegram WebApp интеграция
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    const tg = window.Telegram.WebApp;
+                    tg.ready();
+                    tg.expand && tg.expand();
+                    if (tg.themeParams) {
+                        if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
+                        if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            window.addEventListener('resize', vizSetupCanvas);
+            window.addEventListener('beforeunload', () => { stopPlayback(); });
+            
+            // Экспорт для отладки
+            window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+        })();
     </script>
 </body>
 </html>
