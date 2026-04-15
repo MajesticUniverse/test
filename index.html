@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Majestic Radio</title>
+    <!-- PWA & Mobile Meta -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#2d1f4e">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
+    <link rel="manifest" href="manifest.json">
     
+    <!-- Fonts & Telegram SDK -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@
             --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
             --accent: #7c3aed; --accent-light: #a78bfa; --success: #10b981; --error: #ef4444;
             --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4); --border-radius: 16px; --border-radius-lg: 24px;
-            --btn-glass: rgba(255, 255, 255, 0.08); --btn-glass-hover: rgba(255, 255, 255, 0.15);
+            --btn-glass: rgba(255, 255, 255, 0.08); --btn-glass-hover: rgba(255, 255, 255, 0.15); --btn-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body {
@@ -45,16 +45,19 @@
         .header-right { display: flex; align-items: center; gap: 8px; }
         .burger-btn {
             width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
-            background: var(--btn-glass); backdrop-filter: blur(10px); color: var(--text-primary);
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s ease; position: relative; z-index: 60;
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60;
         }
-        .burger-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); }
-        .burger-btn .burger-line { width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px; position: absolute; transition: all 0.3s ease; }
+        .burger-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.3); }
+        .burger-btn .burger-line {
+            width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px;
+            position: absolute; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         .burger-btn .burger-line:first-child { transform: translateY(-5px); }
         .burger-btn .burger-line:nth-child(3) { transform: translateY(5px); }
         .burger-btn.active .burger-line:first-child { transform: rotate(45deg); }
-        .burger-btn.active .burger-line:nth-child(2) { opacity: 0; }
+        .burger-btn.active .burger-line:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .burger-btn.active .burger-line:nth-child(3) { transform: rotate(-45deg); }
 
         .cover-wrapper {
@@ -64,24 +67,28 @@
         .cover-art {
             width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
             display: flex; align-items: center; justify-content: center; font-size: 80px;
-            background-size: cover; background-position: center; transition: transform 0.5s ease;
+            background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .cover-art.playing { animation: pulse-slow 6s ease-in-out infinite; }
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
+        /* ===== CANVAS VISUALIZER STYLES ===== */
         .visualizer-box {
-            position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 100%;
-            pointer-events: none; border-radius: var(--border-radius); overflow: hidden;
+            position: absolute; bottom: 0; left: 0; right: 0;
+            width: 100%; height: 100%; pointer-events: none;
+            border-radius: var(--border-radius); overflow: hidden;
         }
         .visualizer-container {
-            width: 100%; height: 100%; opacity: 0; transition: opacity 0.4s ease;
+            width: 100%; height: 100%; opacity: 0;
+            transition: opacity 0.4s ease;
             background: linear-gradient(to top, rgba(10,5,20,0.85) 0%, rgba(10,5,20,0.2) 40%, transparent 70%);
         }
         .visualizer-container.active { opacity: 1; }
         #visualizer-canvas { width: 100%; height: 100%; display: block; }
+        /* ============================== */
 
-        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; }
+        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
         .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
         .track-title.placeholder { opacity: 0.5; }
         .track-artist { font-size: 17px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
@@ -89,62 +96,64 @@
         
         .progress-container { width: 100%; margin-bottom: 24px; min-height: 36px; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
         .progress-container.active { opacity: 1; visibility: visible; }
-        .progress-bar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; }
+        .progress-bar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; position: relative; cursor: default; }
         .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); border-radius: 2px; transition: width 0.3s ease; }
-        .progress-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-muted); }
+        .progress-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 500; }
         
         .controls { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 32px; }
         .control-btn {
             width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
-            background: var(--btn-glass); backdrop-filter: blur(10px); color: var(--text-primary);
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s ease;
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow);
         }
-        .control-btn svg { width: 20px; height: 20px; fill: currentColor; }
+        .control-btn svg { width: 20px; height: 20px; fill: currentColor; transition: transform 0.2s; }
         .control-btn:hover { background: var(--btn-glass-hover); transform: translateY(-2px); }
-        .control-btn:active { transform: scale(0.92); }
+        .control-btn:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.2); }
+        
         .play-btn {
             width: 76px; height: 76px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8));
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); color: white;
             border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .play-btn svg { width: 28px; height: 28px; fill: white; }
-        .play-btn:hover { transform: translateY(-3px) scale(1.05); }
+        .play-btn:hover { background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(167, 139, 250, 0.95)); transform: translateY(-3px) scale(1.05); }
         .play-btn:active { transform: scale(0.95); }
 
         .stations-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(15px);
             border-radius: var(--border-radius-lg); z-index: 50;
-            display: flex; flex-direction: column; align-items: center; padding: 32px 24px;
-            opacity: 0; visibility: hidden; transition: opacity 0.3s ease, transform 0.3s ease;
-            transform: scale(0.95); overflow: hidden;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 32px 24px; opacity: 0; visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+            transform: scale(0.95);
         }
         .stations-overlay.open { opacity: 1; visibility: visible; transform: scale(1); }
-        .stations-overlay-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+        .stations-overlay-content { display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 1; pointer-events: auto; }
+        .stations-overlay-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); }
         .stations-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
         .station-item {
-            width: 100%; padding: 14px 18px; border-radius: 12px; background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-primary); font-size: 14px;
-            cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 14px 18px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary); font-size: 14px; cursor: pointer;
+            transition: all 0.2s ease; font-family: inherit; font-weight: 500;
+            text-align: left; display: flex; align-items: center; gap: 10px;
         }
         .station-item:hover { background: rgba(255, 255, 255, 0.12); }
         .station-item:active { transform: scale(0.98); }
         .station-item.active { background: rgba(124, 58, 237, 0.3); border-color: var(--accent); }
-        .station-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+        .station-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
         .station-item.active .station-dot { background: var(--success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
-        .stations-empty { color: var(--text-muted); text-align: center; padding: 20px; }
+        .stations-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px; }
         
-        .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+        .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
         .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
-        .status-badge.warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
-
-        #toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-        .toast { background: rgba(0,0,0,0.85); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; backdrop-filter: blur(10px); animation: slideIn 0.3s ease; max-width: 90%; text-align: center; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
         
-        @media (max-height: 700px) { .track-title { font-size: 22px; } .app-container { padding: 16px; } }
+        @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
+        @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
     </style>
 </head>
 <body>
@@ -154,13 +163,17 @@
                 <div class="logo"><h1 class="radio-title">MAJESTIC RADIO</h1></div>
                 <div class="header-right">
                     <div class="status-badge" id="status-badge"><span>Оффлайн</span></div>
-                    <button class="burger-btn" id="burger-btn"><span class="burger-line"></span><span class="burger-line"></span><span class="burger-line"></span></button>
+                    <button class="burger-btn" id="burger-btn" title="Станции">
+                        <span class="burger-line"></span><span class="burger-line"></span><span class="burger-line"></span>
+                    </button>
                 </div>
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
                 <div class="visualizer-box">
-                    <div class="visualizer-container" id="visualizer-container"><canvas id="visualizer-canvas"></canvas></div>
+                    <div class="visualizer-container" id="visualizer-container">
+                        <canvas id="visualizer-canvas"></canvas>
+                    </div>
                 </div>
             </div>
             <div class="track-info">
@@ -172,332 +185,388 @@
                 <div class="progress-time"><span id="progress-current">0:00</span><span id="progress-duration">0:00</span></div>
             </div>
             <div class="controls">
-                <button class="control-btn" id="prev-btn"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
-                <button class="control-btn play-btn" id="play-btn">
+                <button class="control-btn" id="prev-btn" title="Предыдущая станция"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
+                <button class="control-btn play-btn" id="play-btn" title="Play/Pause">
                     <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    <svg id="pause-icon" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    <svg id="pause-icon" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                 </button>
-                <button class="control-btn" id="next-btn"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
+                <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
+
             <div class="stations-overlay" id="stations-overlay">
-                <div class="stations-overlay-title">📻 Станции</div>
-                <div class="stations-list" id="stations-list"><div class="stations-empty">Загрузка...</div></div>
+                <div class="stations-overlay-content">
+                    <div class="stations-overlay-title">📻 Станции</div>
+                    <div class="stations-list" id="stations-list"><div class="stations-empty">Загрузка станций...</div></div>
+                </div>
             </div>
         </div>
     </div>
-    <div id="toast-container"></div>
-    
-    <!-- playsinline критичен для iOS. crossorigin управляется динамически для обхода блокировок -->
-    <audio id="audio-player" preload="none" playsinline></audio>
 
+    <!-- crossorigin="anonymous" обязателен для Web Audio API при кросс-доменных потоках -->
+    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    
     <script>
-        // === КОНФИГУРАЦИЯ ===
-        const STREAMS = {
-            liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
-            drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
-            psy_chill: 'https://majesticradio.duckdns.org/listen/psy_chill/psychill.mp3',
-            old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',
-            progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',
-            psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',
-            dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'
+        // --- КОНФИГУРАЦИЯ РАДИО ---
+        const STREAM_URLS = {
+            liquid_drum: 'https://majesticradio.duckdns.org:8000/liquiddrum.mp3',
+            drum__bass: 'https://majesticradio.duckdns.org:8010/drumnbass.mp3',
+            psy_chill: 'https://majesticradio.duckdns.org:8020/psychill.mp3',
+            old_goa: 'https://majesticradio.duckdns.org:8030/oldgoa.mp3',
+            progressive_psytrance: 'https://majesticradio.duckdns.org:8040/psyprog.mp3',
+            psy_tech: 'https://majesticradio.duckdns.org:8050/psytech.mp3',
+            dark_room: 'https://majesticradio.duckdns.org:8060/darkroot.mp3'
         };
         const BASE_URL = 'https://majesticradio.duckdns.org';
-        const IDS = Object.keys(STREAMS);
-        const NAMES = {
+        const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
+        const STATION_NAMES = {
             liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
             old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
         };
-        const DEFAULT_COVER = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        // === DOM ===
+        // --- ЭЛЕМЕНТЫ DOM ---
         const audio = document.getElementById('audio-player');
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
-        const burgerBtn = document.getElementById('burger-btn'), overlay = document.getElementById('stations-overlay');
-        const listEl = document.getElementById('stations-list'), cover = document.getElementById('cover-art');
-        const vizCont = document.getElementById('visualizer-container');
-        const titleEl = document.getElementById('track-title'), artistEl = document.getElementById('track-artist');
-        const badge = document.getElementById('status-badge');
-        const progCont = document.getElementById('progress-container'), progFill = document.getElementById('progress-fill');
-        const progCur = document.getElementById('progress-current'), progDur = document.getElementById('progress-duration');
-        const playIco = document.getElementById('play-icon'), pauseIco = document.getElementById('pause-icon');
-        const toastBox = document.getElementById('toast-container');
+        const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
+        const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
+        const visualizerContainer = document.getElementById('visualizer-container');
+        const trackTitleEl = document.getElementById('track-title');
+        const trackArtistEl = document.getElementById('track-artist'), statusBadge = document.getElementById('status-badge');
+        const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
+        const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
+        const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
 
-        // === STATE ===
-        let state = {
-            stations: {}, current: null, playing: false, playbackReady: false,
-            metaInt: null, progInt: null, errTimeout: null,
-            track: { dur: 0, elapsed: 0, last: 0 }, overlayOpen: false
+        // --- СОСТОЯНИЕ ---
+        let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
+        let metadataInterval = null, progressInterval = null, errorTimeout = null;
+        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+
+        const DEFAULT_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
+
+        // ========================================
+        // 🎨 CONSTELLATION VISUALIZER — CORE CODE
+        // ========================================
+        let audioCtx = null, analyser = null, sourceNode = null;
+        let freqData = null;
+        let vizAnimId = null;
+        let isVizRunning = false;
+
+        const CONFIG = {
+            NUM_NODES: 48,
+            CONN_DISTANCE: 45,
+            FFT_SIZE: 2048,
+            SMOOTHING: 0.75,
+            MAX_FREQ: 10000,
+            NODE_HEIGHT: 0.75,
+            BASE_Y: 0.85
         };
 
-        // === VISUALIZER CORE (iOS Safe) ===
-        let actx = null, analyser = null, srcNode = null;
-        let fdata = null, rafId = null, vizRun = false, vizFailed = false;
-        const nodes = Array.from({length: 48}, () => ({x:0, y:0, energy:0, ty:0}));
-        const cvs = document.getElementById('visualizer-canvas');
-        const ctx = cvs.getContext('2d');
+        const nodes = [];
+        for (let i = 0; i < CONFIG.NUM_NODES; i++) nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
 
-        function showToast(msg, type='info') {
-            const t = document.createElement('div');
-            t.className = `toast ${type}`; t.textContent = msg;
-            toastBox.appendChild(t);
-            setTimeout(() => { t.style.animation = 'fadeOut 0.3s ease forwards'; setTimeout(()=>t.remove(), 300); }, 3000);
-        }
+        const canvas = document.getElementById('visualizer-canvas');
+        const canvasCtx = canvas.getContext('2d');
 
-        function initAudioCtx() {
-            if (actx) return true;
+        function initAudioAnalysis() {
+            if (audioCtx) return true;
             try {
-                actx = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = actx.createAnalyser();
-                analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0.75;
-                fdata = new Uint8Array(analyser.frequencyBinCount);
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = CONFIG.FFT_SIZE;
+                analyser.smoothingTimeConstant = CONFIG.SMOOTHING;
+                freqData = new Uint8Array(analyser.frequencyBinCount);
+                console.log('✅ AudioContext initialized');
                 return true;
-            } catch(e) { vizFailed = true; return false; }
+            } catch (e) {
+                console.error('❌ Web Audio error:', e.message);
+                return false;
+            }
         }
 
-        function drawViz() {
-            if (!ctx) return;
+        function drawConstellation() {
+            if (!canvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
-            const rect = cvs.getBoundingClientRect();
-            cvs.width = rect.width * dpr; cvs.height = rect.height * dpr;
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             const w = rect.width, h = rect.height;
-            ctx.clearRect(0, 0, w, h);
-            if (!analyser || !fdata || vizFailed) { rafId = requestAnimationFrame(drawViz); return; }
+            canvasCtx.clearRect(0, 0, w, h);
 
-            analyser.getByteFrequencyData(fdata);
-            const binW = actx.sampleRate / analyser.fftSize;
-            const maxBin = Math.min(fdata.length-1, Math.floor(10000 / binW));
+            if (!analyser || !freqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
+            analyser.getByteFrequencyData(freqData);
+            const binWidth = audioCtx.sampleRate / analyser.fftSize;
+            const maxFreqBin = Math.min(freqData.length - 1, Math.floor(CONFIG.MAX_FREQ / binWidth));
 
-            for(let i=0; i<48; i++) {
-                const r = i/47, val = fdata[Math.floor(r*maxBin)]/255;
-                nodes[i].x = r*w; nodes[i].ty = h*0.85 - (val*h*0.75);
-                nodes[i].y += (nodes[i].ty - nodes[i].y)*0.15; nodes[i].energy = val;
+            for (let i = 0; i < CONFIG.NUM_NODES; i++) {
+                const ratio = i / (CONFIG.NUM_NODES - 1);
+                const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
+                const val = freqData[bin] / 255;
+                nodes[i].x = (i / (CONFIG.NUM_NODES - 1)) * w;
+                nodes[i].targetY = h * CONFIG.BASE_Y - (val * h * CONFIG.NODE_HEIGHT);
+                nodes[i].y += (nodes[i].targetY - nodes[i].y) * 0.15;
+                nodes[i].energy = val;
             }
 
-            ctx.lineWidth = 0.8;
-            for(let i=0; i<48; i++) {
-                for(let j=i+1; j<48; j++) {
-                    const dx = nodes[i].x-nodes[j].x, dy = nodes[i].y-nodes[j].y;
-                    const d2 = dx*dx + dy*dy;
-                    if(d2 < 45*45) {
-                        const a = (1-Math.sqrt(d2)/45)*0.35*(0.4+nodes[i].energy+nodes[j].energy);
-                        ctx.strokeStyle = `rgba(180,160,255,${Math.max(0,Math.min(1,a))})`;
-                        ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.stroke();
+            canvasCtx.lineWidth = 0.8;
+            for (let i = 0; i < CONFIG.NUM_NODES; i++) {
+                for (let j = i + 1; j < CONFIG.NUM_NODES; j++) {
+                    const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < CONFIG.CONN_DISTANCE ** 2) {
+                        const dist = Math.sqrt(distSq);
+                        const alpha = (1 - dist / CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + nodes[i].energy + nodes[j].energy);
+                        canvasCtx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                        canvasCtx.beginPath(); canvasCtx.moveTo(nodes[i].x, nodes[i].y); canvasCtx.lineTo(nodes[j].x, nodes[j].y); canvasCtx.stroke();
                     }
                 }
             }
-            for(let i=0; i<48; i++) {
-                const n = nodes[i], r = 1.2+n.energy*3.5, a = 0.4+n.energy*0.6;
-                ctx.shadowColor = `rgba(167,139,250,${a*0.6})`; ctx.shadowBlur = 6;
-                ctx.fillStyle = `rgba(255,255,255,${a})`;
-                ctx.beginPath(); ctx.arc(n.x,n.y,r,0,Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+
+            for (let i = 0; i < CONFIG.NUM_NODES; i++) {
+                const n = nodes[i];
+                const r = 1.2 + n.energy * 3.5;
+                const alpha = 0.4 + n.energy * 0.6;
+                canvasCtx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
+                canvasCtx.shadowBlur = 6;
+                canvasCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                canvasCtx.beginPath(); canvasCtx.arc(n.x, n.y, r, 0, Math.PI * 2); canvasCtx.fill();
+                canvasCtx.shadowBlur = 0;
             }
-            rafId = requestAnimationFrame(drawViz);
+            vizAnimId = requestAnimationFrame(drawConstellation);
         }
 
-        function startViz() {
-            vizCont.classList.add('active');
-            if(vizFailed || !initAudioCtx()) return;
-            if(actx.state==='suspended') actx.resume().catch(()=>{});
-            if(!vizRun) { vizRun = true; cancelAnimationFrame(rafId); drawViz(); }
-        }
-        function stopViz() {
-            vizCont.classList.remove('active'); vizRun = false; cancelAnimationFrame(rafId);
-            if(ctx) ctx.clearRect(0,0,cvs.width,cvs.height);
-        }
-        function cleanupViz() {
-            stopViz(); if(srcNode) try{srcNode.disconnect()}catch{}; if(actx && actx.state!=='closed') actx.close().catch(()=>{}); actx=analyser=srcNode=null;
+        function startVisualizer() {
+            visualizerContainer.classList.add('active');
+            if (!initAudioAnalysis()) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+            if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
         }
 
-        // === PLAYER LOGIC ===
-        function fmt(s) { if(!s||s<0) return '0:00'; return `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
-        function updateProg(el, dur) {
-            if(!dur||dur<=0) return progCont.classList.remove('active');
-            progCont.classList.add('active');
-            progFill.style.width = `${Math.min(100,(el/dur)*100)}%`;
-            progCur.textContent = fmt(el); progDur.textContent = fmt(dur);
+        function stopVisualizer() {
+            visualizerContainer.classList.remove('active');
+            isVizRunning = false; cancelAnimationFrame(vizAnimId);
+            if (canvasCtx) { const rect = canvas.getBoundingClientRect(); canvasCtx.clearRect(0, 0, rect.width, rect.height); }
         }
-        function startProg() {
-            state.progInt && clearInterval(state.progInt);
-            state.progInt = setInterval(()=> {
-                if(!state.playing || !state.track.dur) return;
-                const el = state.track.elapsed + (Date.now()-state.track.last)/1000;
-                if(el < state.track.dur) updateProg(el, state.track.dur);
+
+        function cleanupVisualizer() {
+            stopVisualizer();
+            if (sourceNode) { try { sourceNode.disconnect(); } catch(e) {} sourceNode = null; }
+            if (analyser) { try { analyser.disconnect(); } catch(e) {} analyser = null; }
+            if (audioCtx && audioCtx.state !== 'closed') { audioCtx.close().catch(() => {}); audioCtx = null; }
+        }
+
+        window.Visualizer = {
+            audioCtx: null,
+            connect: function(audioElement) {
+                if (!initAudioAnalysis()) return;
+                this.audioCtx = audioCtx;
+                if (sourceNode) { try { sourceNode.disconnect(); } catch(e) {} }
+                sourceNode = audioCtx.createMediaElementSource(audioElement);
+                sourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+            },
+            start: startVisualizer,
+            stop: stopVisualizer,
+            cleanup: cleanupVisualizer
+        };
+
+        // --- ФУНКЦИИ ПЛЕЕРА ---
+        function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
+        function updateProgress(elapsed, duration) {
+            if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
+            progressContainer.classList.add('active');
+            const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
+            progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
+        }
+        function startProgressAnimation() {
+            progressInterval && clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                if (!isPlaying || !trackData.duration) return;
+                const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
+                if (elapsed < trackData.duration) updateProgress(elapsed, trackData.duration);
             }, 500);
         }
-        function stopProg() { state.progInt && clearInterval(state.progInt); state.progInt=null; progCont.classList.remove('active'); }
+        function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
         function updateStatus(online) {
-            badge.className = 'status-badge';
-            badge.innerHTML = online ? '<span>В эфире</span>' : '<span>Оффлайн</span>';
-            if(online) badge.classList.add('online');
+            statusBadge.classList.remove('online', 'error');
+            if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
+            else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
         }
-
-        function renderList() {
-            listEl.innerHTML = '';
-            if(Object.keys(state.stations).length===0) { listEl.innerHTML = '<div class="stations-empty">Нет станций</div>'; return; }
-            Object.keys(state.stations).forEach(k => {
-                const b = document.createElement('button');
-                b.className = `station-item${k===state.current?' active':''}`;
-                b.innerHTML = `<span class="station-dot"></span><span>${state.stations[k].name}</span>`;
-                b.onclick = (e) => { e.stopPropagation(); switchSt(k); closeOver(); };
-                listEl.appendChild(b);
+        function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
+        function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
+        function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
+        function toggleStations() { stationsOpen ? closeStations() : openStations(); }
+        function renderStationsList() {
+            if (!stationsListEl) return;
+            const keys = Object.keys(stations);
+            if (keys.length === 0) { stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>'; return; }
+            stationsListEl.innerHTML = '';
+            keys.forEach((key) => {
+                const station = stations[key];
+                const btn = document.createElement('button');
+                btn.className = `station-item${key === currentStationKey ? ' active' : ''}`;
+                btn.innerHTML = `<span class="station-dot"></span><span>${station.name}</span>`;
+                btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); });
+                stationsListEl.appendChild(btn);
             });
         }
-
-        function initStations() {
-            state.stations = {};
-            IDS.forEach(id => state.stations[id] = { name: NAMES[id], stream: STREAMS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER });
-            state.current = IDS[0]; renderList(); setCover(DEFAULT_COVER);
-            fetchStations();
+        function initStationsStatic() {
+            stations = {};
+            STATION_IDS.forEach((id) => {
+                stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
+            });
+            renderStationsList();
+            currentStationKey = STATION_IDS[0];
+            setCoverArt(DEFAULT_COVER_SVG);
         }
-
-        async function fetchStations() {
-            const jobs = IDS.map(async id => {
+        async function loadStationsBackground() {
+            const promises = STATION_IDS.map(async (stationId) => {
                 try {
-                    const c = new AbortController(); setTimeout(()=>c.abort(), 3000);
-                    const res = await fetch(`${BASE_URL}/api/nowplaying/${id}`, {signal:c.signal});
-                    if(res.ok) {
-                        const d = await res.json();
-                        let art = DEFAULT_COVER;
-                        const a = d.now_playing?.song?.art || d.station?.front_art;
-                        if(a) { art = a.startsWith('http') ? a : BASE_URL+a; }
-                        if(state.stations[id]) { state.stations[id].name = d.station?.name || state.stations[id].name; state.stations[id].art = art; }
-                        if(id===state.current) setCover(art); renderList();
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (response.ok) {
+                        const data = await response.json();
+                        let artUrl = DEFAULT_COVER_SVG;
+                        if (data.now_playing?.song?.art?.trim()) { artUrl = data.now_playing.song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
+                        else if (data.station?.front_art?.trim()) { artUrl = data.station.front_art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
+                        if (stations[stationId]) { stations[stationId].name = data.station?.name || stations[stationId].name; stations[stationId].art = artUrl; }
+                        if (stationId === currentStationKey) setCoverArt(artUrl);
+                        renderStationsList();
                     }
-                } catch{}
+                } catch (e) { /* silent */ }
             });
-            await Promise.all(jobs);
+            await Promise.all(promises);
         }
 
-        function setCover(url) {
-            if(!url?.trim()) return cover.style.backgroundImage = `url('${DEFAULT_COVER}')`;
-            const img = new Image();
-            img.onload = () => { cover.style.backgroundImage = `url('${url}')`; cover.querySelector('.cover-placeholder').style.display='none'; };
-            img.onerror = () => { cover.style.backgroundImage = `url('${DEFAULT_COVER}')`; cover.querySelector('.cover-placeholder').style.display='none'; };
-            img.src = url;
+        let isAudioSourceConnected = false;
+        function startVisualization() {
+            if (window.Visualizer) {
+                if (!isAudioSourceConnected) { window.Visualizer.connect(audio); isAudioSourceConnected = true; }
+                window.Visualizer.start();
+            }
+        }
+        function stopVisualization() { if (window.Visualizer) window.Visualizer.stop(); }
+        async function resumeAudioContext() {
+            if (window.Visualizer?.audioCtx && window.Visualizer.audioCtx.state === 'suspended') {
+                await window.Visualizer.audioCtx.resume();
+            }
         }
 
-        function openOver() { state.overlayOpen=true; overlay.classList.add('open'); burgerBtn.classList.add('active'); }
-        function closeOver() { state.overlayOpen=false; overlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
-        function toggleOver() { state.overlayOpen ? closeOver() : openOver(); }
+        function switchStation(key, autoPlay = true) {
+            const station = stations[key]; if (!station) return;
+            playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
+            if (autoPlay) startPlayback(station);
+        }
+        function setCoverArt(artUrl) {
+            if (!coverArt) return;
+            if (artUrl?.trim()) {
+                const img = new Image();
+                img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
+                img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
+                img.src = artUrl;
+            } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
+        }
 
-        async function playStream() {
-            if(!state.current || !state.stations[state.current]) return;
-            const st = state.stations[state.current];
+        function startPlayback(station) {
+            console.log(`🎵 Playing: ${station.stream}`); 
+            playbackStarted = false; 
+            audio.src = `${station.stream}?t=${Date.now()}`;
+            setTimeout(async () => {
+                try {
+                    // iOS Safari: Resume AudioContext в контексте пользовательского взаимодействия
+                    await resumeAudioContext();
+                    startVisualization();
+                    
+                    await audio.play(); 
+                    console.log('✅ Playback started'); 
+                    isPlaying = true; playbackStarted = true;
+                    updatePlayButton(); updateStatus(true); 
+                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                    fetchMetadata(station.api); 
+                    metadataInterval && clearInterval(metadataInterval);
+                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                } catch (err) { 
+                    console.error('❌ Playback error:', err); 
+                    updateStatus(false); 
+                    stopVisualization(); // Fallback cleanup
+                }
+            }, 150);
+        }
+
+        function stopPlayback() {
+            audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
+            stopVisualization(); stopProgressAnimation(); updateStatus(false);
+            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
+            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
+        }
+
+        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
+        
+        function updatePlayButton() { 
+            playIcon.style.display = isPlaying ? 'none' : 'block'; 
+            pauseIcon.style.display = isPlaying ? 'block' : 'none'; 
+            coverArt.classList.toggle('playing', isPlaying); 
+        }
+
+        async function fetchMetadata(apiUrl) {
+            if (!isPlaying) return;
+            try {
+                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
+                if (!response.ok) return;
+                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
+                if (song) {
+                    trackTitleEl.textContent = song.title || 'Unknown Track'; 
+                    trackArtistEl.textContent = song.artist || 'Unknown Artist';
+                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
+                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
+                }
+                if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
+            } catch (e) { /* silent */ }
+        }
+
+        function setupEventListeners() {
+            playBtn.addEventListener('click', togglePlay);
+            prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
+            nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
+            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
+            stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
             
-            // iOS FIX: Все аудио-инициализации строго в контексте клика
-            if(!vizFailed && initAudioCtx()) {
-                if(actx.state==='suspended') await actx.resume().catch(()=>{});
-                if(!state.playbackReady) {
-                    try {
-                        // Пробуем подключить Web Audio с CORS
-                        audio.crossOrigin = "anonymous";
-                        srcNode = actx.createMediaElementSource(audio);
-                        srcNode.connect(analyser); analyser.connect(actx.destination);
-                        state.playbackReady = true;
-                    } catch(e) {
-                        // FALLBACK: Если сервер не поддерживает CORS, отключаем визуализатор, но оставляем звук
-                        console.warn('CORS blocked, falling back to audio only');
-                        vizFailed = true; audio.crossOrigin = null;
-                        showToast('⚠️ Визуализатор отключён (сервер не поддерживает CORS)', 'warning');
-                    }
-                }
-            }
+            let touchStartX = 0, touchStartY = 0, isSwiping = false;
+            stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
+            stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
+            
+            let globalStartX = 0, globalStartY = 0;
+            document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
+            document.addEventListener('touchend', (e) => {
+                if (stationsOpen) return;
+                const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
+                Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
+            }, { passive: true });
+            
+            audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
+            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
+        }
 
-            state.playbackReady = true; // Разблокируем кнопку
-            audio.src = `${st.stream}?t=${Date.now()}`;
-            audio.load();
+        // --- ЗАПУСК ---
+        try {
+            initPlaceholders();
+            setupEventListeners();
+            initStationsStatic();
+            loadStationsBackground();
+        } catch (e) { console.error("Init Error:", e); }
 
+        window.addEventListener('beforeunload', () => { stopPlayback(); window.Visualizer.cleanup(); });
+        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+
+        // Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
             try {
-                await audio.play();
-                state.playing = true; state.playbackReady = true;
-                updatePlayBtn(); updateStatus(true); startViz(); fetchMeta(st.api);
-                state.metaInt && clearInterval(state.metaInt);
-                state.metaInt = setInterval(()=>fetchMeta(st.api), 10000);
-            } catch(err) {
-                console.error('Play failed:', err.name);
-                updateStatus(false); stopViz();
-                if(err.name==='NotAllowedError') showToast('👆 Нажмите ещё раз для запуска');
-                else if(err.name==='SecurityError') {
-                    showToast('🔒 Ошибка доступа к потоку. Проверьте настройки сервера.', 'error');
-                }
-            }
+                const tg = window.Telegram.WebApp; tg.ready(); if (tg.expand) tg.expand();
+            } catch (e) {}
         }
-
-        function stopStream() {
-            audio.pause(); audio.src=''; state.playing=false; state.playbackReady=true;
-            updatePlayBtn(); stopViz(); stopProg(); updateStatus(false);
-            state.metaInt && clearInterval(state.metaInt); state.metaInt=null;
-            state.track = { dur:0, elapsed:0, last:0 };
-        }
-
-        function switchSt(key) {
-            const old = state.current; state.current = key;
-            if(state.playing) stopStream();
-            setCover(state.stations[key].art); renderList();
-            if(state.playing || state.playbackReady) playStream();
-        }
-
-        function updatePlayBtn() {
-            playIco.style.display = state.playing ? 'none' : 'block';
-            pauseIco.style.display = state.playing ? 'block' : 'none';
-            cover.classList.toggle('playing', state.playing);
-        }
-
-        async function fetchMeta(url) {
-            if(!state.playing) return;
-            try {
-                const res = await fetch(`${url}?r=${Math.random()}`, {cache:'no-store'});
-                if(!res.ok) return;
-                const d = await res.json(), song = d.now_playing?.song;
-                if(song) {
-                    titleEl.textContent = song.title || 'Unknown'; artistEl.textContent = song.artist || 'Unknown';
-                    titleEl.classList.remove('placeholder'); artistEl.classList.remove('placeholder');
-                    if(song.art) { const a = song.art.startsWith('http') ? song.art : BASE_URL+song.art; setCover(a); }
-                }
-                if(d.now_playing?.duration && d.now_playing.elapsed !== undefined) {
-                    state.track = { dur: d.now_playing.duration, elapsed: d.now_playing.elapsed, last: Date.now() };
-                    updateProg(d.now_playing.elapsed, d.now_playing.duration); startProg();
-                }
-            } catch{}
-        }
-
-        // === EVENTS ===
-        playBtn.addEventListener('click', () => { state.playing ? stopStream() : playStream(); });
-        prevBtn.addEventListener('click', () => { const i = IDS.indexOf(state.current); switchSt(IDS[i<=0 ? IDS.length-1 : i-1]); });
-        nextBtn.addEventListener('click', () => { const i = IDS.indexOf(state.current); switchSt(IDS[i>=IDS.length-1 ? 0 : i+1]); });
-        burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleOver(); });
-        overlay.addEventListener('click', (e) => { if(e.target===overlay) closeOver(); });
-        
-        audio.addEventListener('error', () => { console.warn('Audio error'); updateStatus(false); stopViz(); });
-        audio.addEventListener('playing', () => { updateStatus(true); if(state.errTimeout) clearTimeout(state.errTimeout); });
-        
-        // Свайпы для станций
-        let tsX=0, tsY=0, swiping=false;
-        overlay.addEventListener('touchstart', e => { tsX=e.changedTouches[0].screenX; tsY=e.changedTouches[0].screenY; swiping=true; }, {passive:true});
-        overlay.addEventListener('touchend', e => {
-            if(!swiping) return; swiping=false;
-            const dx=e.changedTouches[0].screenX-tsX, dy=e.changedTouches[0].screenY-tsY;
-            if(dy>80 && Math.abs(dx)<0.5*Math.abs(dy)) closeOver();
-        }, {passive:true});
-
-        let gsX=0, gsY=0;
-        document.addEventListener('touchstart', e => { gsX=e.changedTouches[0].screenX; gsY=e.changedTouches[0].screenY; }, {passive:true});
-        document.addEventListener('touchend', e => {
-            if(state.overlayOpen) return;
-            const dx=gsX-e.changedTouches[0].screenX, dy=e.changedTouches[0].screenY-gsY;
-            if(Math.abs(dx)>50 && Math.abs(dx)>1.5*Math.abs(dy)) (dx>0 ? nextBtn : prevBtn).click();
-        }, {passive:true});
-
-        window.addEventListener('resize', () => { if(ctx) ctx.setTransform(window.devicePixelRatio,0,0,window.devicePixelRatio,0,0); });
-        window.addEventListener('beforeunload', () => { stopStream(); cleanupViz(); });
-        window.RadioApp = { state, switchSt, togglePlay: playBtn.click };
-
-        if(window.Telegram?.WebApp) { try{window.Telegram.WebApp.ready();}catch{} }
-        
-        // INIT
-        titleEl.classList.add('placeholder'); artistEl.classList.add('placeholder');
-        initStations();
     </script>
 </body>
 </html>
