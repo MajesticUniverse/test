@@ -151,6 +151,56 @@
         .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
         .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+
+        .diagnostics-panel {
+            width: 100%;
+            margin-top: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+        .diagnostics-summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+        .diagnostics-summary::-webkit-details-marker { display: none; }
+        .diagnostics-actions { display: flex; gap: 8px; align-items: center; }
+        .diag-btn {
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+            border-radius: 8px;
+            font-size: 11px;
+            line-height: 1;
+            padding: 7px 9px;
+            cursor: pointer;
+        }
+        .diag-btn:active { transform: scale(0.98); }
+        .diagnostics-output {
+            width: 100%;
+            min-height: 120px;
+            max-height: 220px;
+            overflow: auto;
+            border: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(8, 6, 14, 0.8);
+            color: #e2d9f7;
+            padding: 10px 12px;
+            font-size: 11px;
+            line-height: 1.5;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
         
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
         @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
@@ -192,6 +242,16 @@
                 </button>
                 <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
+            <details class="diagnostics-panel" id="diagnostics-panel">
+                <summary class="diagnostics-summary">
+                    <span>🛠 Диагностика аудио</span>
+                    <span class="diagnostics-actions">
+                        <button class="diag-btn" id="copy-diagnostics-btn" type="button">Копировать</button>
+                        <button class="diag-btn" id="clear-diagnostics-btn" type="button">Очистить</button>
+                    </span>
+                </summary>
+                <pre class="diagnostics-output" id="diagnostics-output">Логи пока пусты</pre>
+            </details>
 
             <div class="stations-overlay" id="stations-overlay">
                 <div class="stations-overlay-content">
@@ -234,6 +294,9 @@
         const progressContainer = document.getElementById('progress-container'), progressFill = document.getElementById('progress-fill');
         const progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
+        const diagnosticsOutput = document.getElementById('diagnostics-output');
+        const copyDiagnosticsBtn = document.getElementById('copy-diagnostics-btn');
+        const clearDiagnosticsBtn = document.getElementById('clear-diagnostics-btn');
 
         // --- СОСТОЯНИЕ ---
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
@@ -243,6 +306,8 @@
         const MAX_RECONNECT_ATTEMPTS = 3;
         const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         let audioUnlocked = false;
+        const diagnosticsBuffer = [];
+        const MAX_DIAGNOSTIC_LINES = 80;
 
         const DEFAULT_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
@@ -515,6 +580,47 @@
             if (error.name === 'SecurityError') return 'CORS/SSL ошибка потока';
             return 'Нет подключения к потоку';
         }
+        function getAudioErrorDescription(mediaError) {
+            if (!mediaError) return 'MediaError отсутствует';
+            const map = {
+                1: 'MEDIA_ERR_ABORTED: воспроизведение прервано пользователем/браузером',
+                2: 'MEDIA_ERR_NETWORK: сетевой сбой во время загрузки',
+                3: 'MEDIA_ERR_DECODE: ошибка декодирования аудио',
+                4: 'MEDIA_ERR_SRC_NOT_SUPPORTED: поток не поддерживается или недоступен'
+            };
+            return map[mediaError.code] || `Неизвестный код MediaError: ${mediaError.code}`;
+        }
+        function getAudioStateSnapshot() {
+            return {
+                station: currentStationKey || 'none',
+                src: audio.currentSrc || audio.src || 'none',
+                networkState: audio.networkState,
+                readyState: audio.readyState,
+                paused: audio.paused,
+                ended: audio.ended,
+                muted: audio.muted,
+                volume: audio.volume,
+                playbackRate: audio.playbackRate,
+                currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime.toFixed(2) : 'n/a',
+                visualizerFallbackMode,
+                isPlaying,
+                reconnectAttempts
+            };
+        }
+        function renderDiagnostics() {
+            if (!diagnosticsOutput) return;
+            diagnosticsOutput.textContent = diagnosticsBuffer.length ? diagnosticsBuffer.join('\n') : 'Логи пока пусты';
+            diagnosticsOutput.scrollTop = diagnosticsOutput.scrollHeight;
+        }
+        function logDiagnostic(tag, details = null, level = 'info') {
+            const now = new Date().toISOString();
+            const payload = details ? ` | ${typeof details === 'string' ? details : JSON.stringify(details)}` : '';
+            const line = `[${now}] [${level.toUpperCase()}] ${tag}${payload}`;
+            diagnosticsBuffer.push(line);
+            if (diagnosticsBuffer.length > MAX_DIAGNOSTIC_LINES) diagnosticsBuffer.shift();
+            renderDiagnostics();
+            console[level === 'error' ? 'error' : 'log'](line);
+        }
 
         function queueReconnect(reason = 'Переподключение...') {
             if (!currentStationKey || !stations[currentStationKey] || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -554,11 +660,12 @@
             audio.src = station.stream;
             try {
                 // Критично для iOS: play() должен быть в том же user gesture, без setTimeout.
+                logDiagnostic('startPlayback', { station: station.name, stream: station.stream, isReconnect });
                 await unlockAudioForIOS();
                 await resumeAudioContext();
                 await audio.play();
                 startVisualization();
-                console.log('✅ Playback started');
+                logDiagnostic('playback_started');
                 isPlaying = true; playbackStarted = true;
                 if (!isReconnect) resetReconnectState();
                 updatePlayButton(); updateStatus(true, 'Подключение...');
@@ -592,7 +699,12 @@
                     metadataInterval && clearInterval(metadataInterval);
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                 } catch (fallbackErr) {
-                    console.error('❌ Playback error:', err, fallbackErr);
+                    logDiagnostic('playback_error', {
+                        primary: err?.message || String(err),
+                        fallback: fallbackErr?.message || String(fallbackErr),
+                        audioError: getAudioErrorDescription(audio.error),
+                        snapshot: getAudioStateSnapshot()
+                    }, 'error');
                     updateStatus(false, getPlaybackErrorMessage(fallbackErr || err));
                     stopVisualization();
                     queueReconnect('Проблема подключения');
@@ -653,9 +765,31 @@
                 const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
                 Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
             }, { passive: true });
+
+            copyDiagnosticsBtn?.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const text = diagnosticsBuffer.join('\n') || 'Логи пока пусты';
+                try {
+                    await navigator.clipboard.writeText(text);
+                    logDiagnostic('diagnostics_copied');
+                } catch (copyErr) {
+                    logDiagnostic('diagnostics_copy_failed', copyErr?.message || String(copyErr), 'error');
+                }
+            });
+            clearDiagnosticsBtn?.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                diagnosticsBuffer.length = 0;
+                renderDiagnostics();
+            });
             
             audio.addEventListener('error', () => {
-                console.log('🔊 Audio error', audio.error);
+                logDiagnostic('audio_error', {
+                    message: getAudioErrorDescription(audio.error),
+                    mediaErrorCode: audio.error?.code || null,
+                    snapshot: getAudioStateSnapshot()
+                }, 'error');
                 if (isPlaying) {
                     stopPlayback(false);
                     queueReconnect('Ошибка потока');
@@ -665,17 +799,34 @@
             });
             audio.addEventListener('playing', () => {
                 playbackStarted = true;
+                logDiagnostic('audio_event_playing', getAudioStateSnapshot());
                 updateStatus(true);
                 errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             });
             audio.addEventListener('canplay', () => {
+                logDiagnostic('audio_event_canplay', getAudioStateSnapshot());
                 if (isPlaying) updateStatus(true, 'Буфер готов');
             });
             audio.addEventListener('stalled', () => {
+                logDiagnostic('audio_event_stalled', getAudioStateSnapshot(), 'error');
                 if (isPlaying) updateStatus(false, 'Буферизация...');
             });
             audio.addEventListener('waiting', () => {
+                logDiagnostic('audio_event_waiting', getAudioStateSnapshot());
                 if (isPlaying) updateStatus(false, 'Ожидание потока...');
+            });
+            audio.addEventListener('loadstart', () => logDiagnostic('audio_event_loadstart', getAudioStateSnapshot()));
+            audio.addEventListener('suspend', () => logDiagnostic('audio_event_suspend', getAudioStateSnapshot()));
+            audio.addEventListener('abort', () => logDiagnostic('audio_event_abort', getAudioStateSnapshot(), 'error'));
+            audio.addEventListener('emptied', () => logDiagnostic('audio_event_emptied', getAudioStateSnapshot()));
+            audio.addEventListener('ended', () => logDiagnostic('audio_event_ended', getAudioStateSnapshot(), 'error'));
+
+            window.addEventListener('error', (evt) => {
+                logDiagnostic('window_error', { message: evt.message, filename: evt.filename, line: evt.lineno, col: evt.colno }, 'error');
+            });
+            window.addEventListener('unhandledrejection', (evt) => {
+                const reason = evt.reason?.message || evt.reason || 'Unknown rejection';
+                logDiagnostic('unhandled_rejection', String(reason), 'error');
             });
         }
 
