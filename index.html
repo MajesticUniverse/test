@@ -137,6 +137,73 @@
             opacity: 0; transform: translateY(10px); transition: all 0.3s ease; pointer-events: none; z-index: 40;
         }
         .error-toast.visible { opacity: 1; transform: translateY(0); }
+        .diag-btn {
+            position: absolute; bottom: 16px; right: 16px; width: 32px; height: 32px;
+            border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.15);
+            background: var(--btn-glass); color: var(--text-muted); font-size: 14px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s ease; z-index: 10;
+        }
+        .diag-btn:hover { background: var(--btn-glass-hover); color: var(--text-primary); transform: scale(1.1); }
+
+        /* === DIAGNOSTICS OVERLAY FIX === */
+        .diag-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(5, 2, 15, 0.92); backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border-radius: var(--border-radius-lg); z-index: 100;
+            display: none; flex-direction: column;
+            overflow: hidden;
+        }
+        .diag-overlay.open { display: flex; }
+        .diag-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 18px 20px 14px; flex-shrink: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .diag-header h3 { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+        .diag-close-btn {
+            width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.15);
+            background: var(--btn-glass); color: var(--text-primary); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+            transition: all 0.2s ease; flex-shrink: 0;
+        }
+        .diag-close-btn:hover { background: var(--btn-glass-hover); transform: scale(1.05); }
+        .diag-close-btn:active { transform: scale(0.95); }
+        .diag-body {
+            flex: 1; overflow-y: auto; padding: 16px 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .diag-section { margin-bottom: 14px; }
+        .diag-section-title { font-size: 11px; font-weight: 700; color: var(--accent-light); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+        .diag-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+        .diag-label { color: var(--text-muted); flex-shrink: 0; }
+        .diag-value { color: var(--text-secondary); text-align: right; max-width: 60%; word-break: break-all; }
+        .diag-value.error { color: var(--error); }
+        .diag-value.ok { color: var(--success); }
+        .diag-value.warn { color: #f59e0b; }
+        .diag-events { max-height: 100px; overflow-y: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px; line-height: 1.5; }
+        .diag-event { padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); display: flex; gap: 6px; }
+        .diag-event .ev-time { color: var(--text-muted); flex-shrink: 0; }
+        .diag-event .ev-type-ok { color: var(--success); }
+        .diag-event .ev-type-err { color: var(--error); }
+        .diag-event .ev-type-warn { color: #f59e0b; }
+        .diag-event .ev-type-info { color: var(--accent-light); }
+        .diag-footer {
+            flex-shrink: 0; padding: 14px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .diag-copy-btn {
+            width: 100%; padding: 14px 16px; border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            border: none; color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s ease; font-family: inherit;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .diag-copy-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4); }
+        .diag-copy-btn:active { transform: scale(0.98); }
+        .diag-copy-btn.copied { background: linear-gradient(135deg, #059669, var(--success)); }
+
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
         @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
     </style>
@@ -176,6 +243,20 @@
                 <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
             <div class="error-toast" id="error-toast"></div>
+            <button class="diag-btn" id="diag-btn" title="Диагностика">⚙️</button>
+
+            <!-- DIAGNOSTICS OVERLAY -->
+            <div class="diag-overlay" id="diag-overlay">
+                <div class="diag-header">
+                    <h3>🔧 Диагностика</h3>
+                    <button class="diag-close-btn" id="diag-close-btn">✕</button>
+                </div>
+                <div class="diag-body" id="diag-body"></div>
+                <div class="diag-footer">
+                    <button class="diag-copy-btn" id="diag-copy-btn">📋 Скопировать отчёт</button>
+                </div>
+            </div>
+
             <div class="stations-overlay" id="stations-overlay">
                 <div class="stations-overlay-content">
                     <div class="stations-overlay-title">📻 Станции</div>
@@ -188,9 +269,132 @@
     <audio id="audio-player" preload="auto" playsinline crossorigin="anonymous"></audio>
     
     <script>
+        // ===============================
+        // 📊 DIAGNOSTICS COLLECTOR
+        // ===============================
+        const _diag = {
+            events: [], audioSnapshots: [], lastError: null, maxEvents: 100, startTime: Date.now(),
+            now() { return new Date().toISOString().replace('T', ' ').substring(0, 23); },
+            add(type, message, data = {}) {
+                const entry = { time: this.now(), type, message, ...data };
+                this.events.unshift(entry);
+                if (this.events.length > this.maxEvents) this.events.pop();
+                if (type === 'error') this.lastError = entry;
+                console.log(`[DIAG ${type.toUpperCase()}] ${message}`, data);
+            },
+            snapshotAudio(audioEl, stationKey) {
+                if (!audioEl) return null;
+                const snap = {
+                    time: this.now(), station: stationKey,
+                    src: audioEl.src || '(none)',
+                    networkState: audioEl.networkState,
+                    networkStateText: ['(none)', 'Loading', 'Loading (meta)', 'Loaded', 'Error'][audioEl.networkState] || '?',
+                    readyState: audioEl.readyState,
+                    readyStateText: ['(none)', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'][audioEl.readyState] || '?',
+                    paused: audioEl.paused, ended: audioEl.ended, muted: audioEl.muted,
+                    volume: audioEl.volume, playbackRate: audioEl.playbackRate,
+                    currentTime: audioEl.currentTime.toFixed(2),
+                    buffered: audioEl.buffered.length > 0 ? `${audioEl.buffered.start(0).toFixed(1)}-${audioEl.buffered.end(0).toFixed(1)}` : 'empty',
+                    seeking: audioEl.seeking,
+                    error: audioEl.error ? { code: audioEl.error.code, message: audioEl.error.message, text: ['(none)', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'][audioEl.error.code] || '?' } : null,
+                    webkitPreservesPitch: audioEl.webkitPreservesPitch, preload: audioEl.preload, crossorigin: audioEl.crossOrigin
+                };
+                this.audioSnapshots.unshift(snap);
+                if (this.audioSnapshots.length > 10) this.audioSnapshots.pop();
+                return snap;
+            },
+            getBrowserInfo() {
+                const ua = navigator.userAgent;
+                const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/CriOS/.test(ua);
+                const isCriOS = /CriOS/.test(ua);
+                const isFirefox = /FxiOS/.test(ua);
+                let browserName = 'Unknown';
+                if (isIOS) {
+                    if (isSafari) browserName = 'Safari (iOS)';
+                    else if (isCriOS) browserName = 'Chrome (iOS)';
+                    else if (isFirefox) browserName = 'Firefox (iOS)';
+                    else browserName = 'WKWebView (iOS)';
+                } else if (/SamsungBrowser/.test(ua)) browserName = 'Samsung Internet';
+                else if (/Chrome/.test(ua)) browserName = 'Chrome';
+                else if (/Firefox/.test(ua)) browserName = 'Firefox';
+                else if (/Safari/.test(ua)) browserName = 'Safari';
+                const iosMatch = ua.match(/(iPhone|iPad|iPod).*?OS (\d+)[_\d]*/i);
+                return { platform: navigator.platform || 'unknown', userAgent: ua.length > 130 ? ua.substring(0, 130) + '...' : ua, isIOS, isSafari, browserName, iosVersion: iosMatch ? iosMatch[2] : null, language: navigator.language, online: navigator.onLine, connection: navigator.connection ? { effectiveType: navigator.connection.effectiveType, downlink: navigator.connection.downlink, rtt: navigator.connection.rtt } : 'not available', screenWidth: window.screen.width, screenHeight: window.screen.height, dpr: window.devicePixelRatio, isPWA: window.matchMedia('(display-mode: standalone)').matches, isTelegramWebView: !!window.Telegram?.WebApp?.initData };
+            },
+            getAudioCodecSupport() {
+                const a = document.createElement('audio');
+                return { mp3: a.canPlayType('audio/mpeg') || a.canPlayType('audio/mp3') || 'maybe', aac: a.canPlayType('audio/aac') || 'maybe', ogg: a.canPlayType('audio/ogg; codecs="vorbis"') || 'maybe', httpsSupported: location.protocol === 'https:' };
+            },
+            getWebAudioState(viz) {
+                if (!viz || !viz.audioCtx) return { initialized: false };
+                return { initialized: true, state: viz.audioCtx.state, sampleRate: viz.audioCtx.sampleRate, destinationChannels: viz.audioCtx.destination.maxChannelCount };
+            },
+            collectAll(audioEl, viz, stationKey) {
+                return { reportTime: this.now(), uptime: ((Date.now() - this.startTime) / 1000).toFixed(1) + 's', browser: this.getBrowserInfo(), codecs: this.getAudioCodecSupport(), webAudio: this.getWebAudioState(viz), currentStation: stationKey, isPlaying: typeof isPlaying !== 'undefined' ? isPlaying : false, playbackStarted: typeof playbackStarted !== 'undefined' ? playbackStarted : false, reconnectAttempts: typeof reconnectAttempts !== 'undefined' ? reconnectAttempts : 0, snapshots: this.audioSnapshots.slice(0, 5), lastError: this.lastError, events: this.events.slice(0, 30) };
+            },
+            toText(audioEl, viz, stationKey) {
+                const data = this.collectAll(audioEl, viz, stationKey);
+                const b = data.browser;
+                const lines = [];
+                lines.push('═══════════════════════════════════════');
+                lines.push(' MAJESTIC RADIO — DIAGNOSTICS REPORT');
+                lines.push('═══════════════════════════════════════');
+                lines.push(`Time: ${data.reportTime}`); lines.push(`Uptime: ${data.uptime}`); lines.push('');
+                lines.push('─── BROWSER ─────────────────────────');
+                lines.push(`Platform: ${b.platform}`); lines.push(`Browser: ${b.browserName}`);
+                lines.push(`iOS: ${b.isIOS ? 'YES' + (b.iosVersion ? ` v${b.iosVersion}` : '') : 'NO'}`);
+                lines.push(`PWA: ${b.isPWA ? 'YES' : 'NO'}`); lines.push(`Online: ${b.online ? 'YES' : 'NO'}`);
+                if (typeof b.connection !== 'string') lines.push(`Connection: ${b.connection.effectiveType} (${b.connection.downlink}Mbps, ${b.connection.rtt}ms)`);
+                lines.push(''); lines.push('─── CODEC SUPPORT ───────────────────');
+                for (const [k, v] of Object.entries(data.codecs)) lines.push(`${k}: "${v}"`);
+                lines.push(''); lines.push('─── WEB AUDIO API ──────────────────');
+                lines.push(`Initialized: ${data.webAudio.initialized}`);
+                if (data.webAudio.initialized) { lines.push(`State: ${data.webAudio.state}`); lines.push(`Sample Rate: ${data.webAudio.sampleRate}Hz`); }
+                lines.push(''); lines.push('─── PLAYBACK STATE ─────────────────');
+                lines.push(`Current Station: ${data.currentStation}`);
+                lines.push(`isPlaying: ${data.isPlaying}`); lines.push(`playbackStarted: ${data.playbackStarted}`);
+                lines.push(`reconnectAttempts: ${data.reconnectAttempts}`); lines.push('');
+                if (data.snapshots.length > 0) {
+                    lines.push(`─── AUDIO SNAPSHOTS (last ${data.snapshots.length}) ──`);
+                    data.snapshots.forEach((s, i) => {
+                        lines.push(`Snapshot #${i + 1} [${s.time}]`);
+                        lines.push(`  Station: ${s.station}`); lines.push(`  URL: ${s.src}`);
+                        lines.push(`  networkState: ${s.networkState} (${s.networkStateText})`);
+                        lines.push(`  readyState: ${s.readyState} (${s.readyStateText})`);
+                        lines.push(`  paused: ${s.paused} | muted: ${s.muted} | volume: ${s.volume}`);
+                        lines.push(`  currentTime: ${s.currentTime} | buffered: ${s.buffered}`);
+                        lines.push(`  error: ${s.error ? `${s.error.text} (${s.error.code}) ${s.error.message || ''}` : 'none'}`);
+                    });
+                }
+                if (data.lastError) { lines.push(''); lines.push('─── LAST ERROR ──────────────────────'); lines.push(`Time: ${data.lastError.time}`); lines.push(`Message: ${data.lastError.message}`); }
+                if (data.events.length > 0) { lines.push(''); lines.push(`─── RECENT EVENTS (${data.events.length}) ─`); data.events.slice(0, 20).forEach(e => { const icon = e.type === 'error' ? '❌' : e.type === 'warn' ? '⚠️' : e.type === 'ok' ? '✅' : 'ℹ️'; lines.push(`  ${e.time} ${icon} ${e.message}`); }); }
+                lines.push(''); lines.push('═══ IOS TROUBLESHOOTING ═══════════');
+                if (b.isIOS) {
+                    const s = data.snapshots[0];
+                    if (s) {
+                        if (s.muted) lines.push('⚠️ AUDIO IS MUTED — iOS blocks muted playback!');
+                        if (s.networkState === 3) lines.push('⚠️ NETWORK ERROR — Check server/firewall/ports');
+                        if (s.error && s.error.code === 4) lines.push('⚠️ SRC_NOT_SUPPORTED — Stream format may not work on iOS Safari');
+                        if (s.readyState === 0 && s.networkState === 2) lines.push('⚠️ LOADING... no data yet — Server may be slow/blocked');
+                    }
+                    lines.push(''); lines.push('Common iOS issues:');
+                    lines.push('1. Audio must be UNMUTED (muted=true blocks playback)');
+                    lines.push('2. Stream URL must use HTTPS');
+                    lines.push('3. Server ports must be accessible');
+                    lines.push('4. MP3 streams work best on iOS');
+                    lines.push('5. Web Audio API requires user gesture');
+                }
+                lines.push('═══════════════════════════════════════');
+                return lines.join('\n');
+            }
+        };
+
+        // ===============================
+        // 🎨 CONSTELLATION VISUALIZER
+        // ===============================
         const _cViz = {
-            ctx: null, analyser: null, srcNode: null, freqData: null, animId: null,
-            running: false, audioCtx: null,
+            ctx: null, analyser: null, srcNode: null, freqData: null, animId: null, running: false, audioCtx: null,
             CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.95 },
             nodes: [],
             init(audioElement) {
@@ -205,8 +409,9 @@
                     this.srcNode = this.audioCtx.createMediaElementSource(audioElement);
                     this.srcNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
+                    _diag.add('ok', 'Web Audio API initialized', { state: this.audioCtx.state });
                     return true;
-                } catch (e) { console.error('Web Audio error:', e); return false; }
+                } catch (e) { _diag.add('error', 'Web Audio init failed', { error: e.message }); return false; }
             },
             draw() {
                 const c = document.getElementById('viz-canvas');
@@ -214,8 +419,7 @@
                 this.ctx = ctx;
                 const dpr = window.devicePixelRatio || 1;
                 const rect = c.getBoundingClientRect();
-                c.width = rect.width * dpr;
-                c.height = rect.height * dpr;
+                c.width = rect.width * dpr; c.height = rect.height * dpr;
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 const w = rect.width, h = rect.height;
                 ctx.clearRect(0, 0, w, h);
@@ -223,10 +427,7 @@
                 this.analyser.getByteFrequencyData(this.freqData);
                 const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
                 const maxBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
-                if (this.nodes.length !== this.CONFIG.NUM_NODES) {
-                    this.nodes = [];
-                    for (let i = 0; i < this.CONFIG.NUM_NODES; i++) this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
-                }
+                if (this.nodes.length !== this.CONFIG.NUM_NODES) { this.nodes = []; for (let i = 0; i < this.CONFIG.NUM_NODES; i++) this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 }); }
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const ratio = i / (this.CONFIG.NUM_NODES - 1);
                     const bin = Math.max(0, Math.floor(ratio * maxBin));
@@ -237,46 +438,18 @@
                     this.nodes[i].energy = val;
                 }
                 ctx.lineWidth = 0.8;
-                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
-                    for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
-                        const dx = this.nodes[i].x - this.nodes[j].x;
-                        const dy = this.nodes[i].y - this.nodes[j].y;
-                        const distSq = dx * dx + dy * dy;
-                        if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) {
-                            const dist = Math.sqrt(distSq);
-                            const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy);
-                            ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
-                            ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke();
-                        }
-                    }
-                }
-                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
-                    const n = this.nodes[i];
-                    const r = 1.2 + n.energy * 3.5;
-                    const alpha = 0.4 + n.energy * 0.6;
-                    ctx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`; ctx.shadowBlur = 6;
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-                }
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) { for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) { const dx = this.nodes[i].x - this.nodes[j].x; const dy = this.nodes[i].y - this.nodes[j].y; const distSq = dx * dx + dy * dy; if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) { const dist = Math.sqrt(distSq); const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy); ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`; ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke(); } } }
+                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) { const n = this.nodes[i]; const r = 1.2 + n.energy * 3.5; const alpha = 0.4 + n.energy * 0.6; ctx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`; ctx.shadowBlur = 6; ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }
                 this.animId = requestAnimationFrame(() => this.draw());
             },
-            start() {
-                document.getElementById('viz-container').classList.add('active');
-                if (!this.running) { this.running = true; cancelAnimationFrame(this.animId); this.draw(); }
-            },
-            stop() {
-                document.getElementById('viz-container').classList.remove('active');
-                this.running = false; cancelAnimationFrame(this.animId);
-                if (this.ctx) { const c = document.getElementById('viz-canvas'); const rect = c.getBoundingClientRect(); this.ctx.clearRect(0, 0, rect.width, rect.height); }
-            },
-            cleanup() {
-                this.stop();
-                if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} this.srcNode = null; }
-                if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; }
-                if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(() => {}); this.audioCtx = null; }
-            }
+            start() { document.getElementById('viz-container').classList.add('active'); if (!this.running) { this.running = true; cancelAnimationFrame(this.animId); this.draw(); } },
+            stop() { document.getElementById('viz-container').classList.remove('active'); this.running = false; cancelAnimationFrame(this.animId); if (this.ctx) { const c = document.getElementById('viz-canvas'); const rect = c.getBoundingClientRect(); this.ctx.clearRect(0, 0, rect.width, rect.height); } },
+            cleanup() { this.stop(); if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} this.srcNode = null; } if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; } if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(() => {}); this.audioCtx = null; } }
         };
 
+        // ===============================
+        // 📻 RADIO APP
+        // ===============================
         const STREAM_URLS = {
             liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
             drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
@@ -288,10 +461,7 @@
         };
         const BASE_URL = 'https://majesticradio.duckdns.org';
         const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
-        const STATION_NAMES = {
-            liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
-            old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
-        };
+        const STATION_NAMES = { liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill', old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room' };
 
         const audio = document.getElementById('audio-player');
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
@@ -303,6 +473,11 @@
         const progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
         const errorToast = document.getElementById('error-toast');
+        const diagBtn = document.getElementById('diag-btn');
+        const diagOverlay = document.getElementById('diag-overlay');
+        const diagBody = document.getElementById('diag-body');
+        const diagCloseBtn = document.getElementById('diag-close-btn');
+        const diagCopyBtn = document.getElementById('diag-copy-btn');
 
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null, stallTimeout = null;
@@ -312,205 +487,94 @@
         const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
         function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
-        function updateProgress(elapsed, duration) {
-            if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
-            progressContainer.classList.add('active');
-            const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
-            progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
-        }
-        function startProgressAnimation() {
-            progressInterval && clearInterval(progressInterval);
-            progressInterval = setInterval(() => {
-                if (!isPlaying || !trackData.duration) return;
-                const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
-                elapsed < trackData.duration && updateProgress(elapsed, trackData.duration);
-            }, 500);
-        }
+        function updateProgress(elapsed, duration) { if (!duration || duration <= 0) return void progressContainer.classList.remove('active'); progressContainer.classList.add('active'); const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100)); progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration); }
+        function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if (!isPlaying || !trackData.duration) return; const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000; elapsed < trackData.duration && updateProgress(elapsed, trackData.duration); }, 500); }
         function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
-        
-        function updateStatus(state) {
-            statusBadge.classList.remove('online', 'error', 'loading');
-            if (state === 'online') statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
-            else if (state === 'loading') statusBadge.classList.add('loading'), statusBadge.innerHTML = '<span>Загрузка...</span>';
-            else statusBadge.innerHTML = '<span>Оффлайн</span>';
-        }
-        
-        function showError(msg) {
-            errorToast.textContent = msg;
-            errorToast.classList.add('visible');
-            setTimeout(() => errorToast.classList.remove('visible'), 4000);
-        }
-        
+        function updateStatus(state) { statusBadge.classList.remove('online', 'error', 'loading'); if (state === 'online') statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>'; else if (state === 'loading') statusBadge.classList.add('loading'), statusBadge.innerHTML = '<span>Загрузка...</span>'; else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
+        function showError(msg) { errorToast.textContent = msg; errorToast.classList.add('visible'); setTimeout(() => errorToast.classList.remove('visible'), 4000); }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
         function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
         function toggleStations() { stationsOpen ? closeStations() : openStations(); }
-        function renderStationsList() {
-            if (!stationsListEl) return;
-            const keys = Object.keys(stations);
-            if (keys.length === 0) { stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>'; return; }
-            stationsListEl.innerHTML = '';
-            keys.forEach((key) => {
-                const station = stations[key];
-                const btn = document.createElement('button');
-                btn.className = `station-item${key === currentStationKey ? ' active' : ''}`;
-                btn.innerHTML = `<span class="station-dot"></span><span>${station.name}</span>`;
-                btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); });
-                stationsListEl.appendChild(btn);
-            });
-        }
-        function initStationsStatic() {
-            stations = {};
-            STATION_IDS.forEach((id) => { stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG }; });
-            renderStationsList(); currentStationKey = STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG);
-        }
-        async function loadStationsBackground() {
-            const promises = STATION_IDS.map(async (stationId) => {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000);
-                    const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (response.ok) {
-                        const data = await response.json();
-                        let artUrl = DEFAULT_COVER_SVG;
-                        if (data.now_playing?.song?.art?.trim()) { artUrl = data.now_playing.song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
-                        else if (data.station?.front_art?.trim()) { artUrl = data.station.front_art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; }
-                        if (stations[stationId]) { stations[stationId].name = data.station?.name || stations[stationId].name; stations[stationId].art = artUrl; }
-                        if (stationId === currentStationKey) setCoverArt(artUrl);
-                        renderStationsList();
-                    }
-                } catch (e) {}
-            });
-            await Promise.all(promises);
-        }
-        function switchStation(key, autoPlay = true) {
-            const station = stations[key]; if (!station) return;
-            reconnectAttempts = 0; playbackStarted = false; currentStationKey = key;
-            stopPlayback(); setCoverArt(station.art); renderStationsList();
-            if (autoPlay) startPlayback(station);
-        }
-        function setCoverArt(artUrl) {
-            if (!coverArt) return;
-            if (artUrl?.trim()) {
-                const img = new Image();
-                img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.src = artUrl;
-            } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
-        }
+        function renderStationsList() { if (!stationsListEl) return; const keys = Object.keys(stations); if (keys.length === 0) { stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>'; return; } stationsListEl.innerHTML = ''; keys.forEach((key) => { const station = stations[key]; const btn = document.createElement('button'); btn.className = `station-item${key === currentStationKey ? ' active' : ''}`; btn.innerHTML = `<span class="station-dot"></span><span>${station.name}</span>`; btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); }); stationsListEl.appendChild(btn); }); }
+        function initStationsStatic() { stations = {}; STATION_IDS.forEach((id) => { stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG }; }); renderStationsList(); currentStationKey = STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG); _diag.add('info', 'Stations initialized', { count: STATION_IDS.length }); }
+        async function loadStationsBackground() { const promises = STATION_IDS.map(async (stationId) => { try { const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 3000); const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal }); clearTimeout(timeoutId); if (response.ok) { const data = await response.json(); let artUrl = DEFAULT_COVER_SVG; if (data.now_playing?.song?.art?.trim()) { artUrl = data.now_playing.song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; } else if (data.station?.front_art?.trim()) { artUrl = data.station.front_art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; } if (stations[stationId]) { stations[stationId].name = data.station?.name || stations[stationId].name; stations[stationId].art = artUrl; } if (stationId === currentStationKey) setCoverArt(artUrl); renderStationsList(); } } catch (e) { _diag.add('warn', `API fetch failed for ${stationId}`); } }); await Promise.all(promises); _diag.add('info', 'Background stations loaded'); }
+        function switchStation(key, autoPlay = true) { const station = stations[key]; if (!station) return; reconnectAttempts = 0; playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList(); if (autoPlay) startPlayback(station); }
+        function setCoverArt(artUrl) { if (!coverArt) return; if (artUrl?.trim()) { const img = new Image(); img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.src = artUrl; } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; } }
 
         function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`);
-            playbackStarted = false;
-            updateStatus('loading');
-            
-            // Ключевое исправление: полная очистка audio элемента перед загрузкой
-            audio.pause();
-            audio.removeAttribute('src');
-            audio.load();
-            
-            // Размутываем аудио для мобильных
-            audio.muted = false;
-            audio.volume = 1.0;
-            
-            // Добавляем timestamp для обхода кеша
+            _diag.add('info', `startPlayback`, { station: station.name, stream: station.stream, reconnect: reconnectAttempts > 0 });
+            playbackStarted = false; updateStatus('loading');
+            audio.pause(); audio.removeAttribute('src'); audio.load();
+            audio.muted = false; audio.volume = 1.0; audio.preload = 'auto';
+            _diag.snapshotAudio(audio, currentStationKey);
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
-            
-            // Инициализируем Web Audio API сразу (требует жеста пользователя)
             if (!_cViz.audioCtx) _cViz.init(audio);
-            if (_cViz.audioCtx && _cViz.audioCtx.state === 'suspended') {
-                _cViz.audioCtx.resume().catch(() => {});
-            }
-            
-            // Таймаут на ожидание подключения
+            if (_cViz.audioCtx && _cViz.audioCtx.state === 'suspended') _cViz.audioCtx.resume().catch(() => {});
             stallTimeout && clearTimeout(stallTimeout);
-            stallTimeout = setTimeout(() => {
-                if (!playbackStarted && isPlaying) {
-                    console.warn('⏳ Playback stalled, retrying...');
-                    reconnectAttempts++;
-                    if (reconnectAttempts <= MAX_RECONNECT) {
-                        showError(`Подключение... (${reconnectAttempts}/${MAX_RECONNECT})`);
-                        startPlayback(station);
-                    } else {
-                        showError('Не удалось подключиться к потоку. Попробуйте позже.');
-                        stopPlayback();
-                    }
-                }
-            }, 8000);
-            
-            // Попытка воспроизведения
+            stallTimeout = setTimeout(() => { if (!playbackStarted && isPlaying) { _diag.add('warn', 'Playback stalled, retrying'); reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError(`Подключение... (${reconnectAttempts}/${MAX_RECONNECT})`); startPlayback(station); } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); } } }, 8000);
             const tryPlay = async () => {
-                try {
-                    await audio.play();
-                    console.log('✅ Playback started');
-                    isPlaying = true; playbackStarted = true; reconnectAttempts = 0;
-                    updatePlayButton(); _cViz.start(); updateStatus('online');
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
-                    fetchMetadata(station.api);
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                } catch (err) {
-                    console.error('❌ Playback error:', err);
-                    if (err.name === 'NotAllowedError') {
-                        // Ждём пользовательского жеста
-                        showError('Нажмите Play ещё раз');
-                    } else {
-                        reconnectAttempts++;
-                        if (reconnectAttempts <= MAX_RECONNECT) {
-                            showError('Повторное подключение...');
-                            setTimeout(() => startPlayback(station), 1000);
-                        } else {
-                            showError('Не удалось подключиться к потоку.');
-                            stopPlayback();
-                        }
-                    }
-                }
+                try { await audio.play(); _diag.add('ok', 'Playback started successfully'); isPlaying = true; playbackStarted = true; reconnectAttempts = 0; updatePlayButton(); _cViz.start(); updateStatus('online'); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); _diag.snapshotAudio(audio, currentStationKey); fetchMetadata(station.api); metadataInterval && clearInterval(metadataInterval); metadataInterval = setInterval(() => fetchMetadata(station.api), 10000); } catch (err) { _diag.add('error', `audio.play() rejected: ${err.name} ${err.message}`, { stack: err.stack }); if (err.name === 'NotAllowedError') { showError('Нажмите Play ещё раз (iOS требует жест)'); } else { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError('Повторное подключение...'); setTimeout(() => startPlayback(station), 1000); } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); } } }
             };
-            
-            // Небольшая задержка для инициализации
             setTimeout(tryPlay, 200);
         }
+        function stopPlayback() { _diag.add('info', 'stopPlayback', { wasPlaying: isPlaying }); audio.pause(); audio.removeAttribute('src'); audio.load(); isPlaying = false; playbackStarted = false; updatePlayButton(); _cViz.stop(); stopProgressAnimation(); updateStatus('idle'); metadataInterval && (clearInterval(metadataInterval), metadataInterval = null); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }; }
+        function togglePlay() { if (!currentStationKey || !stations[currentStationKey]) return; isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]); }
+        function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
+        async function fetchMetadata(apiUrl) { if (!isPlaying) return; try { const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' }); if (!response.ok) return; const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {}; if (song) { trackTitleEl.textContent = song.title || 'Unknown Track'; trackArtistEl.textContent = song.artist || 'Unknown Artist'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); } } if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); } } catch (e) {} }
 
-        function stopPlayback() {
-            audio.pause();
-            audio.removeAttribute('src');
-            audio.load();
-            isPlaying = false; playbackStarted = false;
-            updatePlayButton(); _cViz.stop(); stopProgressAnimation(); updateStatus('idle');
-            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
-            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-            stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
-            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
+        // === DIAGNOSTICS UI ===
+        function renderDiagnostics() {
+            const data = _diag.collectAll(audio, _cViz, currentStationKey);
+            const b = data.browser;
+            let html = '';
+            html += `<div class="diag-section"><div class="diag-section-title">Браузер</div>`;
+            html += `<div class="diag-row"><span class="diag-label">Платформа</span><span class="diag-value">${b.platform}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">Браузер</span><span class="diag-value">${b.browserName}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">iOS</span><span class="diag-value ${b.isIOS ? 'warn' : 'ok'}">${b.isIOS ? 'Да' + (b.iosVersion ? ` v${b.iosVersion}` : '') : 'Нет'}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">PWA</span><span class="diag-value">${b.isPWA ? 'Да' : 'Нет'}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">Online</span><span class="diag-value ${b.online ? 'ok' : 'error'}">${b.online ? 'Да' : 'Нет'}</span></div>`;
+            if (typeof b.connection !== 'string') html += `<div class="diag-row"><span class="diag-label">Сеть</span><span class="diag-value">${b.connection.effectiveType} ${b.connection.downlink}Mbps RTT:${b.connection.rtt}ms</span></div>`;
+            html += `</div>`;
+            html += `<div class="diag-section"><div class="diag-section-title">Кодеки</div>`;
+            for (const [k, v] of Object.entries(data.codecs)) { const cls = (v === 'probably' || v === 'maybe') ? 'ok' : (v === '' ? 'error' : 'warn'); html += `<div class="diag-row"><span class="diag-label">${k}</span><span class="diag-value ${cls}">${v || 'нет'}</span></div>`; }
+            html += `</div>`;
+            html += `<div class="diag-section"><div class="diag-section-title">Web Audio API</div>`;
+            html += `<div class="diag-row"><span class="diag-label">Инициализирован</span><span class="diag-value ${data.webAudio.initialized ? 'ok' : 'error'}">${data.webAudio.initialized ? 'Да' : 'Нет'}</span></div>`;
+            if (data.webAudio.initialized) { html += `<div class="diag-row"><span class="diag-label">State</span><span class="diag-value ${data.webAudio.state === 'running' ? 'ok' : 'warn'}">${data.webAudio.state}</span></div>`; html += `<div class="diag-row"><span class="diag-label">Sample Rate</span><span class="diag-value">${data.webAudio.sampleRate}Hz</span></div>`; }
+            html += `</div>`;
+            html += `<div class="diag-section"><div class="diag-section-title">Состояние</div>`;
+            html += `<div class="diag-row"><span class="diag-label">Станция</span><span class="diag-value">${data.currentStation || '—'}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">isPlaying</span><span class="diag-value ${data.isPlaying ? 'ok' : ''}">${data.isPlaying}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">playbackStarted</span><span class="diag-value ${data.playbackStarted ? 'ok' : 'warn'}">${data.playbackStarted}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">Повторы</span><span class="diag-value">${data.reconnectAttempts}</span></div>`;
+            html += `</div>`;
+            if (data.snapshots.length > 0) {
+                const s = data.snapshots[0];
+                html += `<div class="diag-section"><div class="diag-section-title">Audio Element (последний снимок)</div>`;
+                html += `<div class="diag-row"><span class="diag-label">URL</span><span class="diag-value" style="font-size:10px">${s.src}</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">networkState</span><span class="diag-value ${s.networkState === 3 ? 'error' : s.networkState === 1 ? 'warn' : 'ok'}">${s.networkState} (${s.networkStateText})</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">readyState</span><span class="diag-value ${s.readyState === 0 ? 'warn' : 'ok'}">${s.readyState} (${s.readyStateText})</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">muted</span><span class="diag-value ${s.muted ? 'error' : 'ok'}">${s.muted}</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">volume</span><span class="diag-value">${s.volume}</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">currentTime</span><span class="diag-value">${s.currentTime}</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">buffered</span><span class="diag-value">${s.buffered}</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">error</span><span class="diag-value ${s.error ? 'error' : 'ok'}">${s.error ? `${s.error.text} (${s.error.code})` : 'none'}</span></div>`;
+                html += `</div>`;
+            }
+            html += `<div class="diag-section"><div class="diag-section-title">События</div>`;
+            html += `<div class="diag-events">`;
+            data.events.slice(0, 30).forEach(e => { const cls = e.type === 'error' ? 'ev-type-err' : e.type === 'warn' ? 'ev-type-warn' : e.type === 'ok' ? 'ev-type-ok' : 'ev-type-info'; const icon = e.type === 'error' ? '❌' : e.type === 'warn' ? '⚠️' : e.type === 'ok' ? '✅' : 'ℹ️'; html += `<div class="diag-event"><span class="ev-time">${e.time.substring(11)}</span><span class="${cls}">${icon} ${e.message}</span></div>`; });
+            html += `</div></div>`;
+            diagBody.innerHTML = html;
         }
 
-        function togglePlay() {
-            if (!currentStationKey || !stations[currentStationKey]) return;
-            isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]);
-        }
-
-        function updatePlayButton() {
-            playIcon.style.display = isPlaying ? 'none' : 'block';
-            pauseIcon.style.display = isPlaying ? 'block' : 'none';
-            coverArt.classList.toggle('playing', isPlaying);
-        }
-
-        async function fetchMetadata(apiUrl) {
-            if (!isPlaying) return;
-            try {
-                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
-                if (!response.ok) return;
-                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
-                if (song) {
-                    trackTitleEl.textContent = song.title || 'Unknown Track';
-                    trackArtistEl.textContent = song.artist || 'Unknown Artist';
-                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
-                }
-                if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) {}
+        function openDiagnostics() { renderDiagnostics(); diagOverlay.classList.add('open'); }
+        function closeDiagnostics() { diagOverlay.classList.remove('open'); }
+        async function copyDiagnostics() {
+            const text = _diag.toText(audio, _cViz, currentStationKey);
+            try { await navigator.clipboard.writeText(text); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); _diag.add('info', 'Diagnostics copied to clipboard'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); } catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); }
         }
 
         function setupEventListeners() {
@@ -519,86 +583,31 @@
             nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
             burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
             stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
+            diagBtn.addEventListener('click', openDiagnostics);
+            diagCloseBtn.addEventListener('click', closeDiagnostics);
+            diagCopyBtn.addEventListener('click', copyDiagnostics);
             let touchStartX = 0, touchStartY = 0, isSwiping = false;
             stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
             stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
             let globalStartX = 0, globalStartY = 0;
             document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
-            document.addEventListener('touchend', (e) => {
-                if (stationsOpen) return;
-                const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
-                Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
-            }, { passive: true });
-
-            // Обработка событий audio
-            audio.addEventListener('playing', () => {
-                playbackStarted = true; updateStatus('online');
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
-            });
-            audio.addEventListener('stalled', () => {
-                console.warn('🔄 Stream stalled');
-                if (isPlaying && !playbackStarted) {
-                    stallTimeout && clearTimeout(stallTimeout);
-                    stallTimeout = setTimeout(() => {
-                        reconnectAttempts++;
-                        if (reconnectAttempts <= MAX_RECONNECT) {
-                            showError('Буферизация...');
-                            startPlayback(stations[currentStationKey]);
-                        } else {
-                            showError('Поток недоступен');
-                            stopPlayback();
-                        }
-                    }, 5000);
-                }
-            });
-            audio.addEventListener('error', (e) => {
-                const err = audio.error;
-                let msg = 'Ошибка воспроизведения';
-                if (err) {
-                    if (err.code === MediaError.MEDIA_ERR_NETWORK) msg = 'Ошибка сети. Проверьте подключение.';
-                    else if (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) msg = 'Формат потока не поддерживается';
-                    else if (err.code === MediaError.MEDIA_ERR_DECODE) msg = 'Ошибка декодирования';
-                }
-                console.error('❌ Audio error:', msg);
-                if (isPlaying) {
-                    reconnectAttempts++;
-                    if (reconnectAttempts <= MAX_RECONNECT) {
-                        showError(msg + `. Попытка ${reconnectAttempts}/${MAX_RECONNECT}`);
-                        setTimeout(() => startPlayback(stations[currentStationKey]), 1500);
-                    } else {
-                        showError(msg);
-                        stopPlayback();
-                    }
-                }
-            });
-            audio.addEventListener('waiting', () => updateStatus('loading'));
+            document.addEventListener('touchend', (e) => { if (stationsOpen) return; const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY; Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click()); }, { passive: true });
+            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus('online'); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); _diag.add('ok', 'audio_event_playing', _diag.snapshotAudio(audio, currentStationKey)); });
+            audio.addEventListener('stalled', () => { _diag.add('warn', 'audio_event_stalled', _diag.snapshotAudio(audio, currentStationKey)); if (isPlaying && !playbackStarted) { stallTimeout && clearTimeout(stallTimeout); stallTimeout = setTimeout(() => { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError('Буферизация...'); startPlayback(stations[currentStationKey]); } else { showError('Поток недоступен'); stopPlayback(); } }, 5000); } });
+            audio.addEventListener('error', (e) => { const err = audio.error; let msg = 'Ошибка воспроизведения'; if (err) { if (err.code === MediaError.MEDIA_ERR_NETWORK) msg = 'Ошибка сети'; else if (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) msg = 'Формат не поддерживается'; else if (err.code === MediaError.MEDIA_ERR_DECODE) msg = 'Ошибка декодирования'; else if (err.code === MediaError.MEDIA_ERR_ABORTED) msg = 'Загрузка прервана'; } _diag.add('error', msg, { ..._diag.snapshotAudio(audio, currentStationKey), errorMsg: err?.message }); if (isPlaying) { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError(`${msg}. Попытка ${reconnectAttempts}/${MAX_RECONNECT}`); setTimeout(() => startPlayback(stations[currentStationKey]), 1500); } else { showError(msg); stopPlayback(); } } });
+            audio.addEventListener('waiting', () => { _diag.add('warn', 'audio_event_waiting', _diag.snapshotAudio(audio, currentStationKey)); updateStatus('loading'); });
+            audio.addEventListener('loadstart', () => { _diag.add('info', 'audio_event_loadstart', _diag.snapshotAudio(audio, currentStationKey)); });
+            audio.addEventListener('abort', () => { _diag.add('error', 'audio_event_abort', _diag.snapshotAudio(audio, currentStationKey)); });
+            audio.addEventListener('emptied', () => { _diag.add('info', 'audio_event_emptied', _diag.snapshotAudio(audio, currentStationKey)); });
         }
 
-        try {
-            initPlaceholders();
-            setupEventListeners();
-            initStationsStatic();
-            loadStationsBackground();
-        } catch (e) { console.error("Init Error:", e); }
+        try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); _diag.add('info', 'App initialized', _diag.getBrowserInfo()); _diag.snapshotAudio(audio, null); } catch (e) { _diag.add('error', `Init Error: ${e.message}`, { stack: e.stack }); console.error("Init Error:", e); }
 
-        if (window.Telegram && window.Telegram.WebApp) {
-            try {
-                const tg = window.Telegram.WebApp;
-                tg.ready();
-                tg.expand && tg.expand();
-                if (tg.themeParams) {
-                    if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
-                    if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
-                }
-            } catch (e) {}
-        }
+        if (window.Telegram && window.Telegram.WebApp) { try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand && tg.expand(); if (tg.themeParams) { if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color); if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color); } } catch (e) {} }
 
-        window.addEventListener('resize', () => {
-            if (_cViz.ctx) { const c = document.getElementById('viz-canvas'); const dpr = window.devicePixelRatio || 1; const rect = c.getBoundingClientRect(); c.width = rect.width * dpr; c.height = rect.height * dpr; }
-        });
+        window.addEventListener('resize', () => { if (_cViz.ctx) { const c = document.getElementById('viz-canvas'); const dpr = window.devicePixelRatio || 1; const rect = c.getBoundingClientRect(); c.width = rect.width * dpr; c.height = rect.height * dpr; } });
         window.addEventListener('beforeunload', () => { stopPlayback(); _cViz.cleanup(); });
-        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, diagnostics: _diag };
     </script>
 </body>
 </html>
