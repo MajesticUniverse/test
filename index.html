@@ -239,6 +239,8 @@
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+        let reconnectTimeout = null, reconnectAttempts = 0, isStartingPlayback = false;
+        const MAX_RECONNECT_ATTEMPTS = 3;
         const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         let audioUnlocked = false;
 
@@ -251,6 +253,7 @@
         let freqData = null;
         let vizAnimId = null;
         let isVizRunning = false;
+        let visualizerFallbackMode = false;
 
         const CONFIG = {
             NUM_NODES: 48,
@@ -295,15 +298,25 @@
             const w = rect.width, h = rect.height;
             canvasCtx.clearRect(0, 0, w, h);
 
-            if (!analyser || !freqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
-            analyser.getByteFrequencyData(freqData);
-            const binWidth = audioCtx.sampleRate / analyser.fftSize;
-            const maxFreqBin = Math.min(freqData.length - 1, Math.floor(CONFIG.MAX_FREQ / binWidth));
+            const hasLiveAnalyser = Boolean(analyser && freqData && audioCtx);
+            let maxFreqBin = 0;
+            if (hasLiveAnalyser) {
+                analyser.getByteFrequencyData(freqData);
+                const binWidth = audioCtx.sampleRate / analyser.fftSize;
+                maxFreqBin = Math.min(freqData.length - 1, Math.floor(CONFIG.MAX_FREQ / binWidth));
+            }
 
             for (let i = 0; i < CONFIG.NUM_NODES; i++) {
                 const ratio = i / (CONFIG.NUM_NODES - 1);
-                const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
-                const val = freqData[bin] / 255;
+                let val = 0;
+                if (hasLiveAnalyser) {
+                    const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
+                    val = freqData[bin] / 255;
+                } else {
+                    const t = Date.now() * 0.0018;
+                    val = 0.25 + 0.2 * Math.sin(t + i * 0.22) + 0.12 * Math.sin(t * 1.9 + i * 0.14);
+                    val = Math.max(0.05, Math.min(0.8, val));
+                }
                 nodes[i].x = (i / (CONFIG.NUM_NODES - 1)) * w;
                 nodes[i].targetY = h * CONFIG.BASE_Y - (val * h * CONFIG.NODE_HEIGHT);
                 nodes[i].y += (nodes[i].targetY - nodes[i].y) * 0.15;
@@ -355,6 +368,7 @@
             if (sourceNode) { try { sourceNode.disconnect(); } catch(e) {} sourceNode = null; }
             if (analyser) { try { analyser.disconnect(); } catch(e) {} analyser = null; }
             if (audioCtx && audioCtx.state !== 'closed') { audioCtx.close().catch(() => {}); audioCtx = null; }
+            visualizerFallbackMode = false;
         }
 
         window.Visualizer = {
@@ -402,10 +416,19 @@
                 audioUnlocked = true;
             } catch (e) { /* silent */ }
         }
-        function updateStatus(online) {
+        function updateStatus(online, message = null) {
             statusBadge.classList.remove('online', 'error');
-            if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
-            else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
+            if (online) {
+                statusBadge.classList.add('online');
+                statusBadge.innerHTML = `<span>${message || 'В эфире'}</span>`;
+                return;
+            }
+            if (message) {
+                statusBadge.classList.add('error');
+                statusBadge.innerHTML = `<span>${message}</span>`;
+                return;
+            }
+            statusBadge.innerHTML = '<span>Оффлайн</span>';
         }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
@@ -458,7 +481,16 @@
         let isAudioSourceConnected = false;
         function startVisualization() {
             if (window.Visualizer) {
-                if (!isAudioSourceConnected) { window.Visualizer.connect(audio); isAudioSourceConnected = true; }
+                if (!isAudioSourceConnected && !visualizerFallbackMode) {
+                    try {
+                        window.Visualizer.connect(audio);
+                        isAudioSourceConnected = true;
+                    } catch (e) {
+                        visualizerFallbackMode = true;
+                        isAudioSourceConnected = false;
+                        console.warn('Visualizer switched to fallback mode:', e.message || e);
+                    }
+                }
                 window.Visualizer.start();
             }
         }
@@ -467,6 +499,36 @@
             if (window.Visualizer?.audioCtx && window.Visualizer.audioCtx.state === 'suspended') {
                 await window.Visualizer.audioCtx.resume();
             }
+        }
+
+        function resetReconnectState() {
+            reconnectAttempts = 0;
+            reconnectTimeout && clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+        }
+
+        function getPlaybackErrorMessage(error) {
+            if (!error) return 'Ошибка потока';
+            if (error.name === 'NotAllowedError') return 'Нажмите Play ещё раз';
+            if (error.name === 'NotSupportedError') return 'Поток не поддерживается';
+            if (error.name === 'AbortError') return 'Подключение прервано';
+            if (error.name === 'SecurityError') return 'CORS/SSL ошибка потока';
+            return 'Нет подключения к потоку';
+        }
+
+        function queueReconnect(reason = 'Переподключение...') {
+            if (!currentStationKey || !stations[currentStationKey] || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                updateStatus(false, reconnectAttempts >= MAX_RECONNECT_ATTEMPTS ? 'Поток недоступен' : reason);
+                return;
+            }
+            reconnectAttempts += 1;
+            updateStatus(false, `${reason} (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+            reconnectTimeout && clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(() => {
+                if (!isPlaying && currentStationKey && stations[currentStationKey]) {
+                    startPlayback(stations[currentStationKey], true);
+                }
+            }, 1500 * reconnectAttempts);
         }
 
         function switchStation(key, autoPlay = true) {
@@ -484,20 +546,29 @@
             } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
         }
 
-        async function startPlayback(station) {
+        async function startPlayback(station, isReconnect = false) {
+            if (isStartingPlayback) return;
+            isStartingPlayback = true;
             console.log(`🎵 Playing: ${station.stream}`); 
             playbackStarted = false; 
-            audio.src = `${station.stream}?t=${Date.now()}`;
+            audio.src = station.stream;
             try {
                 // Критично для iOS: play() должен быть в том же user gesture, без setTimeout.
                 await unlockAudioForIOS();
                 await resumeAudioContext();
-                startVisualization();
                 await audio.play();
+                startVisualization();
                 console.log('✅ Playback started');
                 isPlaying = true; playbackStarted = true;
-                updatePlayButton(); updateStatus(true);
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                if (!isReconnect) resetReconnectState();
+                updatePlayButton(); updateStatus(true, 'Подключение...');
+                errorTimeout && clearTimeout(errorTimeout);
+                errorTimeout = setTimeout(() => {
+                    if (!playbackStarted) {
+                        stopPlayback(false);
+                        queueReconnect('Ожидание потока...');
+                    }
+                }, 8000);
                 fetchMetadata(station.api);
                 metadataInterval && clearInterval(metadataInterval);
                 metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
@@ -508,10 +579,13 @@
                     if (IS_IOS && window.Visualizer) {
                         window.Visualizer.cleanup();
                         isAudioSourceConnected = false;
+                        visualizerFallbackMode = false;
                     }
                     await audio.play();
+                    startVisualization();
                     isPlaying = true;
                     playbackStarted = true;
+                    if (!isReconnect) resetReconnectState();
                     updatePlayButton();
                     updateStatus(true);
                     fetchMetadata(station.api);
@@ -519,17 +593,21 @@
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                 } catch (fallbackErr) {
                     console.error('❌ Playback error:', err, fallbackErr);
-                    updateStatus(false);
+                    updateStatus(false, getPlaybackErrorMessage(fallbackErr || err));
                     stopVisualization();
+                    queueReconnect('Проблема подключения');
                 }
+            } finally {
+                isStartingPlayback = false;
             }
         }
 
-        function stopPlayback() {
+        function stopPlayback(resetReconnect = true) {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
             stopVisualization(); stopProgressAnimation(); updateStatus(false);
             metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            if (resetReconnect) resetReconnectState();
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
 
@@ -576,8 +654,29 @@
                 Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
             }, { passive: true });
             
-            audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
-            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
+            audio.addEventListener('error', () => {
+                console.log('🔊 Audio error', audio.error);
+                if (isPlaying) {
+                    stopPlayback(false);
+                    queueReconnect('Ошибка потока');
+                } else {
+                    updateStatus(false, 'Ошибка аудио');
+                }
+            });
+            audio.addEventListener('playing', () => {
+                playbackStarted = true;
+                updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            });
+            audio.addEventListener('canplay', () => {
+                if (isPlaying) updateStatus(true, 'Буфер готов');
+            });
+            audio.addEventListener('stalled', () => {
+                if (isPlaying) updateStatus(false, 'Буферизация...');
+            });
+            audio.addEventListener('waiting', () => {
+                if (isPlaying) updateStatus(false, 'Ожидание потока...');
+            });
         }
 
         // --- ЗАПУСК ---
