@@ -239,6 +239,8 @@
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+        const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        let audioUnlocked = false;
 
         const DEFAULT_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
@@ -387,6 +389,19 @@
             }, 500);
         }
         function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
+        async function unlockAudioForIOS() {
+            if (audioUnlocked || !IS_IOS) return;
+            try {
+                if (window.Visualizer?.audioCtx?.state === 'suspended') await window.Visualizer.audioCtx.resume();
+                const prevMuted = audio.muted;
+                audio.muted = true;
+                await audio.play();
+                audio.pause();
+                audio.currentTime = 0;
+                audio.muted = prevMuted;
+                audioUnlocked = true;
+            } catch (e) { /* silent */ }
+        }
         function updateStatus(online) {
             statusBadge.classList.remove('online', 'error');
             if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
@@ -469,30 +484,45 @@
             } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }
         }
 
-        function startPlayback(station) {
+        async function startPlayback(station) {
             console.log(`🎵 Playing: ${station.stream}`); 
             playbackStarted = false; 
             audio.src = `${station.stream}?t=${Date.now()}`;
-            setTimeout(async () => {
+            try {
+                // Критично для iOS: play() должен быть в том же user gesture, без setTimeout.
+                await unlockAudioForIOS();
+                await resumeAudioContext();
+                startVisualization();
+                await audio.play();
+                console.log('✅ Playback started');
+                isPlaying = true; playbackStarted = true;
+                updatePlayButton(); updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                fetchMetadata(station.api);
+                metadataInterval && clearInterval(metadataInterval);
+                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+            } catch (err) {
+                // iOS fallback: если WebAudio/visualizer ломает поток, играем без него.
                 try {
-                    // iOS Safari: Resume AudioContext в контексте пользовательского взаимодействия
-                    await resumeAudioContext();
-                    startVisualization();
-                    
-                    await audio.play(); 
-                    console.log('✅ Playback started'); 
-                    isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); updateStatus(true); 
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(station.api); 
+                    stopVisualization();
+                    if (IS_IOS && window.Visualizer) {
+                        window.Visualizer.cleanup();
+                        isAudioSourceConnected = false;
+                    }
+                    await audio.play();
+                    isPlaying = true;
+                    playbackStarted = true;
+                    updatePlayButton();
+                    updateStatus(true);
+                    fetchMetadata(station.api);
                     metadataInterval && clearInterval(metadataInterval);
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                } catch (err) { 
-                    console.error('❌ Playback error:', err); 
-                    updateStatus(false); 
-                    stopVisualization(); // Fallback cleanup
+                } catch (fallbackErr) {
+                    console.error('❌ Playback error:', err, fallbackErr);
+                    updateStatus(false);
+                    stopVisualization();
                 }
-            }, 150);
+            }
         }
 
         function stopPlayback() {
@@ -570,4 +600,3 @@
     </script>
 </body>
 </html>
-
