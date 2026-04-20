@@ -146,7 +146,6 @@
         }
         .diag-btn:hover { background: var(--btn-glass-hover); color: var(--text-primary); transform: scale(1.1); }
 
-        /* === DIAGNOSTICS OVERLAY FIX === */
         .diag-overlay {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(5, 2, 15, 0.92); backdrop-filter: blur(25px);
@@ -170,10 +169,7 @@
         }
         .diag-close-btn:hover { background: var(--btn-glass-hover); transform: scale(1.05); }
         .diag-close-btn:active { transform: scale(0.95); }
-        .diag-body {
-            flex: 1; overflow-y: auto; padding: 16px 20px;
-            -webkit-overflow-scrolling: touch;
-        }
+        .diag-body { flex: 1; overflow-y: auto; padding: 16px 20px; -webkit-overflow-scrolling: touch; }
         .diag-section { margin-bottom: 14px; }
         .diag-section-title { font-size: 11px; font-weight: 700; color: var(--accent-light); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
         .diag-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
@@ -189,10 +185,7 @@
         .diag-event .ev-type-err { color: var(--error); }
         .diag-event .ev-type-warn { color: #f59e0b; }
         .diag-event .ev-type-info { color: var(--accent-light); }
-        .diag-footer {
-            flex-shrink: 0; padding: 14px 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-        }
+        .diag-footer { flex-shrink: 0; padding: 14px 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
         .diag-copy-btn {
             width: 100%; padding: 14px 16px; border-radius: 12px;
             background: linear-gradient(135deg, var(--accent), var(--accent-light));
@@ -203,6 +196,19 @@
         .diag-copy-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4); }
         .diag-copy-btn:active { transform: scale(0.98); }
         .diag-copy-btn.copied { background: linear-gradient(135deg, #059669, var(--success)); }
+        .diag-test-btn {
+            width: 100%; padding: 12px 16px; border-radius: 12px;
+            background: var(--btn-glass); border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-primary); font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s ease; font-family: inherit;
+            margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .diag-test-btn:hover { background: var(--btn-glass-hover); }
+        .diag-test-btn:active { transform: scale(0.98); }
+        .diag-test-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .diag-test-result { font-size: 11px; color: var(--text-muted); margin-top: 6px; padding: 6px 8px; background: rgba(0,0,0,0.2); border-radius: 6px; font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+        .diag-test-result.ok { color: var(--success); }
+        .diag-test-result.err { color: var(--error); }
 
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
         @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
@@ -245,7 +251,6 @@
             <div class="error-toast" id="error-toast"></div>
             <button class="diag-btn" id="diag-btn" title="Диагностика">⚙️</button>
 
-            <!-- DIAGNOSTICS OVERLAY -->
             <div class="diag-overlay" id="diag-overlay">
                 <div class="diag-header">
                     <h3>🔧 Диагностика</h3>
@@ -269,28 +274,27 @@
     <audio id="audio-player" preload="auto" playsinline crossorigin="anonymous"></audio>
     
     <script>
-        // ===============================
-        // 📊 DIAGNOSTICS COLLECTOR
-        // ===============================
         const _diag = {
             events: [], audioSnapshots: [], lastError: null, maxEvents: 100, startTime: Date.now(),
+            playbackTimeline: [], streamTests: [],
             now() { return new Date().toISOString().replace('T', ' ').substring(0, 23); },
             add(type, message, data = {}) {
                 const entry = { time: this.now(), type, message, ...data };
                 this.events.unshift(entry);
                 if (this.events.length > this.maxEvents) this.events.pop();
                 if (type === 'error') this.lastError = entry;
-                console.log(`[DIAG ${type.toUpperCase()}] ${message}`, data);
             },
-            snapshotAudio(audioEl, stationKey) {
+            snapshotAudio(audioEl, stationKey, pendingUrl) {
                 if (!audioEl) return null;
+                // ИСПОЛЬЗУЕМ pendingUrl если src пуст (snapshot вызван до установки src)
+                const actualSrc = pendingUrl || audioEl.src || '(none)';
                 const snap = {
                     time: this.now(), station: stationKey,
-                    src: audioEl.src || '(none)',
+                    src: actualSrc,
                     networkState: audioEl.networkState,
-                    networkStateText: ['(none)', 'Loading', 'Loading (meta)', 'Loaded', 'Error'][audioEl.networkState] || '?',
+                    networkStateText: ['(none)', 'LOADING (meta)', 'LOADING', 'LOADED', 'ERROR'][audioEl.networkState] || '?',
                     readyState: audioEl.readyState,
-                    readyStateText: ['(none)', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'][audioEl.readyState] || '?',
+                    readyStateText: ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'][audioEl.readyState] || '?',
                     paused: audioEl.paused, ended: audioEl.ended, muted: audioEl.muted,
                     volume: audioEl.volume, playbackRate: audioEl.playbackRate,
                     currentTime: audioEl.currentTime.toFixed(2),
@@ -302,6 +306,57 @@
                 this.audioSnapshots.unshift(snap);
                 if (this.audioSnapshots.length > 10) this.audioSnapshots.pop();
                 return snap;
+            },
+            recordTimeline(step, data = {}) {
+                this.playbackTimeline.push({ time: this.now(), step, ...data });
+                if (this.playbackTimeline.length > 20) this.playbackTimeline.shift();
+            },
+            async testStream(url, timeout = 5000) {
+                const start = Date.now();
+                const result = { url, time: this.now(), startTime: start };
+                try {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), timeout);
+                    result.fetchStart = Date.now();
+                    const response = await fetch(url, { method: 'GET', signal: controller.signal, cache: 'no-store' });
+                    clearTimeout(timer);
+                    result.fetchEnd = Date.now();
+                    result.status = response.status;
+                    result.ok = response.ok;
+                    result.contentType = response.headers.get('Content-Type') || 'unknown';
+                    result.contentLength = response.headers.get('Content-Length') || 'unknown';
+                    result.duration = result.fetchEnd - result.fetchStart;
+                    result.iceHeader = response.headers.get('icy-name') || response.headers.get('icy-description') || 'none';
+                    _diag.add('ok', `Stream test OK: ${result.status} ${result.contentType} (${result.duration}ms)`);
+                } catch (e) {
+                    result.fetchEnd = Date.now();
+                    result.duration = result.fetchEnd - result.fetchStart;
+                    result.error = e.name + ': ' + e.message;
+                    result.isAbort = e.name === 'AbortError';
+                    result.isNetwork = e.name === 'TypeError';
+                    _diag.add('error', `Stream test FAILED: ${result.error}`);
+                }
+                this.streamTests.push(result);
+                return result;
+            },
+            async testDNS(domain) {
+                const start = Date.now();
+                const result = { domain, time: this.now() };
+                try {
+                    // Пробуем загрузить ресурс с этого домена
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 5000);
+                    await fetch(`https://${domain}`, { mode: 'no-cors', signal: controller.signal });
+                    clearTimeout(timer);
+                    result.resolved = true;
+                    result.duration = Date.now() - start;
+                } catch (e) {
+                    // no-cors всегда возвращает response, но CORS error не бросает
+                    result.resolved = e.name !== 'TypeError';
+                    result.error = e.name + ': ' + e.message;
+                    result.duration = Date.now() - start;
+                }
+                return result;
             },
             getBrowserInfo() {
                 const ua = navigator.userAgent;
@@ -320,21 +375,54 @@
                 else if (/Firefox/.test(ua)) browserName = 'Firefox';
                 else if (/Safari/.test(ua)) browserName = 'Safari';
                 const iosMatch = ua.match(/(iPhone|iPad|iPod).*?OS (\d+)[_\d]*/i);
-                return { platform: navigator.platform || 'unknown', userAgent: ua.length > 130 ? ua.substring(0, 130) + '...' : ua, isIOS, isSafari, browserName, iosVersion: iosMatch ? iosMatch[2] : null, language: navigator.language, online: navigator.onLine, connection: navigator.connection ? { effectiveType: navigator.connection.effectiveType, downlink: navigator.connection.downlink, rtt: navigator.connection.rtt } : 'not available', screenWidth: window.screen.width, screenHeight: window.screen.height, dpr: window.devicePixelRatio, isPWA: window.matchMedia('(display-mode: standalone)').matches, isTelegramWebView: !!window.Telegram?.WebApp?.initData };
+                return {
+                    platform: navigator.platform || 'unknown',
+                    userAgent: ua.length > 130 ? ua.substring(0, 130) + '...' : ua,
+                    isIOS, isSafari, browserName,
+                    iosVersion: iosMatch ? iosMatch[2] : null,
+                    language: navigator.language,
+                    online: navigator.onLine,
+                    connection: navigator.connection ? { effectiveType: navigator.connection.effectiveType, downlink: navigator.connection.downlink, rtt: navigator.connection.rtt } : 'not available',
+                    screenWidth: window.screen.width, screenHeight: window.screen.height, dpr: window.devicePixelRatio,
+                    isPWA: window.matchMedia('(display-mode: standalone)').matches,
+                    isTelegramWebView: !!window.Telegram?.WebApp?.initData,
+                    hasAudioAutoplay: (() => { try { return typeof document.createElement('audio').autoplay !== 'undefined'; } catch(e) { return false; } })()
+                };
             },
             getAudioCodecSupport() {
                 const a = document.createElement('audio');
-                return { mp3: a.canPlayType('audio/mpeg') || a.canPlayType('audio/mp3') || 'maybe', aac: a.canPlayType('audio/aac') || 'maybe', ogg: a.canPlayType('audio/ogg; codecs="vorbis"') || 'maybe', httpsSupported: location.protocol === 'https:' };
+                return {
+                    mp3: a.canPlayType('audio/mpeg') || a.canPlayType('audio/mp3') || 'maybe',
+                    aac: a.canPlayType('audio/aac') || 'maybe',
+                    ogg: a.canPlayType('audio/ogg; codecs="vorbis"') || 'maybe',
+                    webm: a.canPlayType('audio/webm') || 'maybe',
+                    httpsSupported: location.protocol === 'https:'
+                };
             },
             getWebAudioState(viz) {
                 if (!viz || !viz.audioCtx) return { initialized: false };
                 return { initialized: true, state: viz.audioCtx.state, sampleRate: viz.audioCtx.sampleRate, destinationChannels: viz.audioCtx.destination.maxChannelCount };
             },
-            collectAll(audioEl, viz, stationKey) {
-                return { reportTime: this.now(), uptime: ((Date.now() - this.startTime) / 1000).toFixed(1) + 's', browser: this.getBrowserInfo(), codecs: this.getAudioCodecSupport(), webAudio: this.getWebAudioState(viz), currentStation: stationKey, isPlaying: typeof isPlaying !== 'undefined' ? isPlaying : false, playbackStarted: typeof playbackStarted !== 'undefined' ? playbackStarted : false, reconnectAttempts: typeof reconnectAttempts !== 'undefined' ? reconnectAttempts : 0, snapshots: this.audioSnapshots.slice(0, 5), lastError: this.lastError, events: this.events.slice(0, 30) };
+            collectAll(audioEl, viz, stationKey, streamUrl) {
+                return {
+                    reportTime: this.now(), uptime: ((Date.now() - this.startTime) / 1000).toFixed(1) + 's',
+                    browser: this.getBrowserInfo(),
+                    codecs: this.getAudioCodecSupport(),
+                    webAudio: this.getWebAudioState(viz),
+                    currentStation: stationKey,
+                    isPlaying: typeof isPlaying !== 'undefined' ? isPlaying : false,
+                    playbackStarted: typeof playbackStarted !== 'undefined' ? playbackStarted : false,
+                    reconnectAttempts: typeof reconnectAttempts !== 'undefined' ? reconnectAttempts : 0,
+                    audioSrc: streamUrl || '(none)',
+                    snapshots: this.audioSnapshots.slice(0, 5),
+                    playbackTimeline: this.playbackTimeline.slice(),
+                    streamTests: this.streamTests.slice(),
+                    lastError: this.lastError,
+                    events: this.events.slice(0, 30)
+                };
             },
-            toText(audioEl, viz, stationKey) {
-                const data = this.collectAll(audioEl, viz, stationKey);
+            toText(audioEl, viz, stationKey, streamUrl) {
+                const data = this.collectAll(audioEl, viz, stationKey, streamUrl);
                 const b = data.browser;
                 const lines = [];
                 lines.push('═══════════════════════════════════════');
@@ -345,6 +433,7 @@
                 lines.push(`Platform: ${b.platform}`); lines.push(`Browser: ${b.browserName}`);
                 lines.push(`iOS: ${b.isIOS ? 'YES' + (b.iosVersion ? ` v${b.iosVersion}` : '') : 'NO'}`);
                 lines.push(`PWA: ${b.isPWA ? 'YES' : 'NO'}`); lines.push(`Online: ${b.online ? 'YES' : 'NO'}`);
+                lines.push(`Telegram WebView: ${b.isTelegramWebView ? 'YES' : 'NO'}`);
                 if (typeof b.connection !== 'string') lines.push(`Connection: ${b.connection.effectiveType} (${b.connection.downlink}Mbps, ${b.connection.rtt}ms)`);
                 lines.push(''); lines.push('─── CODEC SUPPORT ───────────────────');
                 for (const [k, v] of Object.entries(data.codecs)) lines.push(`${k}: "${v}"`);
@@ -353,8 +442,25 @@
                 if (data.webAudio.initialized) { lines.push(`State: ${data.webAudio.state}`); lines.push(`Sample Rate: ${data.webAudio.sampleRate}Hz`); }
                 lines.push(''); lines.push('─── PLAYBACK STATE ─────────────────');
                 lines.push(`Current Station: ${data.currentStation}`);
+                lines.push(`Audio URL: ${data.audioSrc}`);
                 lines.push(`isPlaying: ${data.isPlaying}`); lines.push(`playbackStarted: ${data.playbackStarted}`);
                 lines.push(`reconnectAttempts: ${data.reconnectAttempts}`); lines.push('');
+                if (data.playbackTimeline.length > 0) {
+                    lines.push('─── PLAYBACK TIMELINE ──────────────');
+                    data.playbackTimeline.forEach(t => { lines.push(`  [${t.time.substring(11)}] ${t.step}${t.ms ? ` (${t.ms}ms)` : ''}${t.detail ? ': ' + t.detail : ''}`); });
+                    lines.push('');
+                }
+                if (data.streamTests.length > 0) {
+                    lines.push('─── STREAM TESTS ───────────────────');
+                    data.streamTests.forEach((t, i) => {
+                        lines.push(`Test #${i + 1} [${t.time}]`);
+                        lines.push(`  URL: ${t.url}`);
+                        lines.push(`  Duration: ${t.duration}ms`);
+                        if (t.ok) { lines.push(`  Status: ${t.status} OK`); lines.push(`  Content-Type: ${t.contentType}`); if (t.iceHeader !== 'none') lines.push(`  ICY: ${t.iceHeader}`); }
+                        else { lines.push(`  Error: ${t.error}`); lines.push(`  AbortError: ${t.isAbort}`); lines.push(`  NetworkError: ${t.isNetwork}`); }
+                    });
+                    lines.push('');
+                }
                 if (data.snapshots.length > 0) {
                     lines.push(`─── AUDIO SNAPSHOTS (last ${data.snapshots.length}) ──`);
                     data.snapshots.forEach((s, i) => {
@@ -374,25 +480,25 @@
                     const s = data.snapshots[0];
                     if (s) {
                         if (s.muted) lines.push('⚠️ AUDIO IS MUTED — iOS blocks muted playback!');
-                        if (s.networkState === 3) lines.push('⚠️ NETWORK ERROR — Check server/firewall/ports');
+                        if (s.networkState === 3 && s.readyState === 0) lines.push('⚠️ Network=ERROR, Ready=NONE — Server unreachable or CORS blocked');
                         if (s.error && s.error.code === 4) lines.push('⚠️ SRC_NOT_SUPPORTED — Stream format may not work on iOS Safari');
                         if (s.readyState === 0 && s.networkState === 2) lines.push('⚠️ LOADING... no data yet — Server may be slow/blocked');
+                        if (data.audioSrc === '(none)' || data.audioSrc === '') lines.push('⚠️ NO AUDIO URL SET — src was cleared before play');
                     }
                     lines.push(''); lines.push('Common iOS issues:');
                     lines.push('1. Audio must be UNMUTED (muted=true blocks playback)');
                     lines.push('2. Stream URL must use HTTPS');
-                    lines.push('3. Server ports must be accessible');
+                    lines.push('3. Server ports must be accessible (iOS may block non-standard ports)');
                     lines.push('4. MP3 streams work best on iOS');
                     lines.push('5. Web Audio API requires user gesture');
+                    lines.push('6. iOS may block autoplay without direct user interaction');
+                    lines.push('7. WKWebView (Telegram) may have different audio policies');
                 }
                 lines.push('═══════════════════════════════════════');
                 return lines.join('\n');
             }
         };
 
-        // ===============================
-        // 🎨 CONSTELLATION VISUALIZER
-        // ===============================
         const _cViz = {
             ctx: null, analyser: null, srcNode: null, freqData: null, animId: null, running: false, audioCtx: null,
             CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.95 },
@@ -429,9 +535,7 @@
                 const maxBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
                 if (this.nodes.length !== this.CONFIG.NUM_NODES) { this.nodes = []; for (let i = 0; i < this.CONFIG.NUM_NODES; i++) this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 }); }
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
-                    const ratio = i / (this.CONFIG.NUM_NODES - 1);
-                    const bin = Math.max(0, Math.floor(ratio * maxBin));
-                    const val = this.freqData[bin] / 255;
+                    const ratio = i / (this.CONFIG.NUM_NODES - 1); const bin = Math.max(0, Math.floor(ratio * maxBin)); const val = this.freqData[bin] / 255;
                     this.nodes[i].x = ratio * w;
                     this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
                     this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
@@ -447,9 +551,6 @@
             cleanup() { this.stop(); if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} this.srcNode = null; } if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; } if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(() => {}); this.audioCtx = null; } }
         };
 
-        // ===============================
-        // 📻 RADIO APP
-        // ===============================
         const STREAM_URLS = {
             liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
             drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
@@ -483,6 +584,7 @@
         let metadataInterval = null, progressInterval = null, errorTimeout = null, stallTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
         let reconnectAttempts = 0; const MAX_RECONNECT = 3;
+        let currentStreamUrl = null;
 
         const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
@@ -503,36 +605,126 @@
         function setCoverArt(artUrl) { if (!coverArt) return; if (artUrl?.trim()) { const img = new Image(); img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.src = artUrl; } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; } }
 
         function startPlayback(station) {
-            _diag.add('info', `startPlayback`, { station: station.name, stream: station.stream, reconnect: reconnectAttempts > 0 });
-            playbackStarted = false; updateStatus('loading');
-            audio.pause(); audio.removeAttribute('src'); audio.load();
-            audio.muted = false; audio.volume = 1.0; audio.preload = 'auto';
-            _diag.snapshotAudio(audio, currentStationKey);
-            audio.src = `${station.stream}?t=${Date.now()}`;
+            const streamUrl = `${station.stream}?t=${Date.now()}`;
+            currentStreamUrl = streamUrl;
+            const stepStart = Date.now();
+            _diag.add('info', `startPlayback: ${station.name}`, { stream: station.stream });
+            _diag.recordTimeline('startPlayback', { station: station.name });
+
+            playbackStarted = false;
+            updateStatus('loading');
+
+            // 1. Останавливаем текущее
+            audio.pause();
+            _diag.recordTimeline('audio.pause');
+            _diag.snapshotAudio(audio, currentStationKey, streamUrl);
+
+            // 2. Сбрасываем src
+            audio.removeAttribute('src');
             audio.load();
+            _diag.recordTimeline('clear src + load');
+
+            // 3. Устанавливаем параметры для iOS
+            audio.muted = false;
+            audio.volume = 1.0;
+            audio.preload = 'auto';
+            _diag.recordTimeline('set muted=false, volume=1');
+
+            // 4. Snapshot ДО установки нового src
+            _diag.snapshotAudio(audio, currentStationKey, '(clearing...)');
+
+            // 5. Устанавливаем новый src
+            audio.src = streamUrl;
+            _diag.recordTimeline('set src', { url: streamUrl });
+            _diag.snapshotAudio(audio, currentStationKey, streamUrl);
+
+            // 6. Загружаем
+            audio.load();
+            const loadTime = Date.now() - stepStart;
+            _diag.recordTimeline('audio.load()', { ms: loadTime });
+            _diag.snapshotAudio(audio, currentStationKey, streamUrl);
+
+            // 7. Web Audio API
             if (!_cViz.audioCtx) _cViz.init(audio);
             if (_cViz.audioCtx && _cViz.audioCtx.state === 'suspended') _cViz.audioCtx.resume().catch(() => {});
+
+            // 8. Таймаут ожидания
             stallTimeout && clearTimeout(stallTimeout);
-            stallTimeout = setTimeout(() => { if (!playbackStarted && isPlaying) { _diag.add('warn', 'Playback stalled, retrying'); reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError(`Подключение... (${reconnectAttempts}/${MAX_RECONNECT})`); startPlayback(station); } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); } } }, 8000);
-            const tryPlay = async () => {
-                try { await audio.play(); _diag.add('ok', 'Playback started successfully'); isPlaying = true; playbackStarted = true; reconnectAttempts = 0; updatePlayButton(); _cViz.start(); updateStatus('online'); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); _diag.snapshotAudio(audio, currentStationKey); fetchMetadata(station.api); metadataInterval && clearInterval(metadataInterval); metadataInterval = setInterval(() => fetchMetadata(station.api), 10000); } catch (err) { _diag.add('error', `audio.play() rejected: ${err.name} ${err.message}`, { stack: err.stack }); if (err.name === 'NotAllowedError') { showError('Нажмите Play ещё раз (iOS требует жест)'); } else { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError('Повторное подключение...'); setTimeout(() => startPlayback(station), 1000); } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); } } }
-            };
-            setTimeout(tryPlay, 200);
+            stallTimeout = setTimeout(() => {
+                if (!playbackStarted && isPlaying) {
+                    _diag.add('warn', 'Playback stalled, retrying');
+                    reconnectAttempts++;
+                    if (reconnectAttempts <= MAX_RECONNECT) {
+                        showError(`Подключение... (${reconnectAttempts}/${MAX_RECONNECT})`);
+                        startPlayback(station);
+                    } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); }
+                }
+            }, 8000);
+
+            // 9. Попытка воспроизведения с задержкой
+            const tryPlayDelay = 300;
+            _diag.recordTimeline(`scheduling play() after ${tryPlayDelay}ms`);
+            setTimeout(async () => {
+                const playAttemptStart = Date.now();
+                _diag.recordTimeline('calling audio.play()');
+                _diag.snapshotAudio(audio, currentStationKey, streamUrl);
+                try {
+                    await audio.play();
+                    _diag.recordTimeline('audio.play() RESOLVED', { ms: Date.now() - playAttemptStart });
+                    _diag.add('ok', 'Playback started successfully');
+                    isPlaying = true; playbackStarted = true; reconnectAttempts = 0;
+                    updatePlayButton(); _cViz.start(); updateStatus('online');
+                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                    stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
+                    _diag.snapshotAudio(audio, currentStationKey, streamUrl);
+                    fetchMetadata(station.api);
+                    metadataInterval && clearInterval(metadataInterval);
+                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                } catch (err) {
+                    _diag.recordTimeline(`audio.play() REJECTED: ${err.name}`, { ms: Date.now() - playAttemptStart });
+                    _diag.add('error', `audio.play() rejected: ${err.name} ${err.message}`);
+                    if (err.name === 'NotAllowedError') {
+                        showError('Нажмите Play ещё раз (iOS требует жест)');
+                    } else {
+                        reconnectAttempts++;
+                        if (reconnectAttempts <= MAX_RECONNECT) {
+                            showError('Повторное подключение...');
+                            setTimeout(() => startPlayback(station), 1000);
+                        } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); }
+                    }
+                }
+            }, tryPlayDelay);
         }
-        function stopPlayback() { _diag.add('info', 'stopPlayback', { wasPlaying: isPlaying }); audio.pause(); audio.removeAttribute('src'); audio.load(); isPlaying = false; playbackStarted = false; updatePlayButton(); _cViz.stop(); stopProgressAnimation(); updateStatus('idle'); metadataInterval && (clearInterval(metadataInterval), metadataInterval = null); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }; }
+
+        function stopPlayback() {
+            _diag.add('info', 'stopPlayback', { wasPlaying: isPlaying });
+            _diag.recordTimeline('stopPlayback');
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.load();
+            currentStreamUrl = null;
+            isPlaying = false; playbackStarted = false;
+            updatePlayButton(); _cViz.stop(); stopProgressAnimation(); updateStatus('idle');
+            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
+            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
+            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
+        }
+
         function togglePlay() { if (!currentStationKey || !stations[currentStationKey]) return; isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
         async function fetchMetadata(apiUrl) { if (!isPlaying) return; try { const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' }); if (!response.ok) return; const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {}; if (song) { trackTitleEl.textContent = song.title || 'Unknown Track'; trackArtistEl.textContent = song.artist || 'Unknown Artist'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); } } if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); } } catch (e) {} }
 
         // === DIAGNOSTICS UI ===
         function renderDiagnostics() {
-            const data = _diag.collectAll(audio, _cViz, currentStationKey);
+            const data = _diag.collectAll(audio, _cViz, currentStationKey, currentStreamUrl);
             const b = data.browser;
             let html = '';
             html += `<div class="diag-section"><div class="diag-section-title">Браузер</div>`;
             html += `<div class="diag-row"><span class="diag-label">Платформа</span><span class="diag-value">${b.platform}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">Браузер</span><span class="diag-value">${b.browserName}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">iOS</span><span class="diag-value ${b.isIOS ? 'warn' : 'ok'}">${b.isIOS ? 'Да' + (b.iosVersion ? ` v${b.iosVersion}` : '') : 'Нет'}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">Telegram WebView</span><span class="diag-value ${b.isTelegramWebView ? 'warn' : ''}">${b.isTelegramWebView ? 'Да' : 'Нет'}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">PWA</span><span class="diag-value">${b.isPWA ? 'Да' : 'Нет'}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">Online</span><span class="diag-value ${b.online ? 'ok' : 'error'}">${b.online ? 'Да' : 'Нет'}</span></div>`;
             if (typeof b.connection !== 'string') html += `<div class="diag-row"><span class="diag-label">Сеть</span><span class="diag-value">${b.connection.effectiveType} ${b.connection.downlink}Mbps RTT:${b.connection.rtt}ms</span></div>`;
@@ -546,10 +738,35 @@
             html += `</div>`;
             html += `<div class="diag-section"><div class="diag-section-title">Состояние</div>`;
             html += `<div class="diag-row"><span class="diag-label">Станция</span><span class="diag-value">${data.currentStation || '—'}</span></div>`;
+            html += `<div class="diag-row"><span class="diag-label">Audio URL</span><span class="diag-value" style="font-size:10px">${data.audioSrc}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">isPlaying</span><span class="diag-value ${data.isPlaying ? 'ok' : ''}">${data.isPlaying}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">playbackStarted</span><span class="diag-value ${data.playbackStarted ? 'ok' : 'warn'}">${data.playbackStarted}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">Повторы</span><span class="diag-value">${data.reconnectAttempts}</span></div>`;
             html += `</div>`;
+
+            // Timeline
+            if (data.playbackTimeline.length > 0) {
+                html += `<div class="diag-section"><div class="diag-section-title">Таймлайн воспроизведения</div>`;
+                data.playbackTimeline.forEach(t => {
+                    const icon = t.step.includes('REJECTED') ? '❌' : t.step.includes('RESOLVED') ? '✅' : '·';
+                    html += `<div class="diag-row"><span class="diag-value" style="max-width:100%;font-size:11px">${icon} [${t.time.substring(11)}] ${t.step}${t.ms ? ` (${t.ms}ms)` : ''}</span></div>`;
+                });
+                html += `</div>`;
+            }
+
+            // Stream tests
+            if (data.streamTests.length > 0) {
+                html += `<div class="diag-section"><div class="diag-section-title">Тесты потока</div>`;
+                data.streamTests.forEach((t, i) => {
+                    html += `<div class="diag-row"><span class="diag-label">Test #${i + 1}</span>`;
+                    if (t.ok) { html += `<span class="diag-value ok">${t.status} ${t.contentType} (${t.duration}ms)</span>`; }
+                    else { html += `<span class="diag-value error">${t.error} (${t.duration}ms)</span>`; }
+                    html += `</div>`;
+                });
+                html += `</div>`;
+            }
+
+            // Snapshots
             if (data.snapshots.length > 0) {
                 const s = data.snapshots[0];
                 html += `<div class="diag-section"><div class="diag-section-title">Audio Element (последний снимок)</div>`;
@@ -563,17 +780,63 @@
                 html += `<div class="diag-row"><span class="diag-label">error</span><span class="diag-value ${s.error ? 'error' : 'ok'}">${s.error ? `${s.error.text} (${s.error.code})` : 'none'}</span></div>`;
                 html += `</div>`;
             }
+
+            // Events
             html += `<div class="diag-section"><div class="diag-section-title">События</div>`;
             html += `<div class="diag-events">`;
             data.events.slice(0, 30).forEach(e => { const cls = e.type === 'error' ? 'ev-type-err' : e.type === 'warn' ? 'ev-type-warn' : e.type === 'ok' ? 'ev-type-ok' : 'ev-type-info'; const icon = e.type === 'error' ? '❌' : e.type === 'warn' ? '⚠️' : e.type === 'ok' ? '✅' : 'ℹ️'; html += `<div class="diag-event"><span class="ev-time">${e.time.substring(11)}</span><span class="${cls}">${icon} ${e.message}</span></div>`; });
             html += `</div></div>`;
+
+            // Test buttons
+            html += `<div class="diag-section"><div class="diag-section-title">Тесты</div>`;
+            html += `<button class="diag-test-btn" id="diag-test-stream-btn">🌐 Тест подключения к потоку</button>`;
+            html += `<div class="diag-test-result" id="diag-test-stream-result" style="display:none"></div>`;
+            html += `<button class="diag-test-btn" id="diag-test-dns-btn">🔍 Тест DNS сервера</button>`;
+            html += `<div class="diag-test-result" id="diag-test-dns-result" style="display:none"></div>`;
+            html += `</div>`;
+
             diagBody.innerHTML = html;
+
+            // Bind test buttons
+            const testStreamBtn = document.getElementById('diag-test-stream-btn');
+            const testDnsBtn = document.getElementById('diag-test-dns-btn');
+            if (testStreamBtn) {
+                testStreamBtn.addEventListener('click', async () => {
+                    testStreamBtn.disabled = true;
+                    testStreamBtn.textContent = '⏳ Тестирование...';
+                    const resultEl = document.getElementById('diag-test-stream-result');
+                    resultEl.style.display = 'block'; resultEl.className = 'diag-test-result';
+                    resultEl.textContent = 'Тестирование...';
+                    const station = stations[currentStationKey];
+                    if (station) {
+                        const res = await _diag.testStream(station.stream);
+                        if (res.ok) { resultEl.className = 'diag-test-result ok'; resultEl.textContent = `✅ OK: ${res.status} ${res.contentType}\nДлительность: ${res.duration}ms\nICY: ${res.iceHeader}`; }
+                        else { resultEl.className = 'diag-test-result err'; resultEl.textContent = `❌ FAILED: ${res.error}\nДлительность: ${res.duration}ms\nAbortError: ${res.isAbort}\nNetworkError: ${res.isNetwork}`; }
+                    } else { resultEl.textContent = '❌ Нет выбранной станции'; resultEl.className = 'diag-test-result err'; }
+                    testStreamBtn.disabled = false;
+                    testStreamBtn.textContent = '🌐 Тест подключения к потоку';
+                });
+            }
+            if (testDnsBtn) {
+                testDnsBtn.addEventListener('click', async () => {
+                    testDnsBtn.disabled = true;
+                    testDnsBtn.textContent = '⏳ Тестирование...';
+                    const resultEl = document.getElementById('diag-test-dns-result');
+                    resultEl.style.display = 'block'; resultEl.className = 'diag-test-result';
+                    resultEl.textContent = 'Тестирование DNS...';
+                    const res = await _diag.testDNS('majesticradio.duckdns.org');
+                    if (res.resolved) { resultEl.className = 'diag-test-result ok'; resultEl.textContent = `✅ DNS resolved\nДлительность: ${res.duration}ms`; }
+                    else { resultEl.className = 'diag-test-result err'; resultEl.textContent = `❌ DNS failed: ${res.error}\nДлительность: ${res.duration}ms`; }
+                    testDnsBtn.disabled = false;
+                    testDnsBtn.textContent = '🔍 Тест DNS сервера';
+                });
+            }
         }
 
         function openDiagnostics() { renderDiagnostics(); diagOverlay.classList.add('open'); }
         function closeDiagnostics() { diagOverlay.classList.remove('open'); }
         async function copyDiagnostics() {
-            const text = _diag.toText(audio, _cViz, currentStationKey);
+            const text = _diag.toText(audio, _cViz, currentStationKey, currentStreamUrl);
             try { await navigator.clipboard.writeText(text); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); _diag.add('info', 'Diagnostics copied to clipboard'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); } catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); }
         }
 
@@ -592,13 +855,15 @@
             let globalStartX = 0, globalStartY = 0;
             document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
             document.addEventListener('touchend', (e) => { if (stationsOpen) return; const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY; Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click()); }, { passive: true });
-            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus('online'); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); _diag.add('ok', 'audio_event_playing', _diag.snapshotAudio(audio, currentStationKey)); });
-            audio.addEventListener('stalled', () => { _diag.add('warn', 'audio_event_stalled', _diag.snapshotAudio(audio, currentStationKey)); if (isPlaying && !playbackStarted) { stallTimeout && clearTimeout(stallTimeout); stallTimeout = setTimeout(() => { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError('Буферизация...'); startPlayback(stations[currentStationKey]); } else { showError('Поток недоступен'); stopPlayback(); } }, 5000); } });
-            audio.addEventListener('error', (e) => { const err = audio.error; let msg = 'Ошибка воспроизведения'; if (err) { if (err.code === MediaError.MEDIA_ERR_NETWORK) msg = 'Ошибка сети'; else if (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) msg = 'Формат не поддерживается'; else if (err.code === MediaError.MEDIA_ERR_DECODE) msg = 'Ошибка декодирования'; else if (err.code === MediaError.MEDIA_ERR_ABORTED) msg = 'Загрузка прервана'; } _diag.add('error', msg, { ..._diag.snapshotAudio(audio, currentStationKey), errorMsg: err?.message }); if (isPlaying) { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError(`${msg}. Попытка ${reconnectAttempts}/${MAX_RECONNECT}`); setTimeout(() => startPlayback(stations[currentStationKey]), 1500); } else { showError(msg); stopPlayback(); } } });
-            audio.addEventListener('waiting', () => { _diag.add('warn', 'audio_event_waiting', _diag.snapshotAudio(audio, currentStationKey)); updateStatus('loading'); });
-            audio.addEventListener('loadstart', () => { _diag.add('info', 'audio_event_loadstart', _diag.snapshotAudio(audio, currentStationKey)); });
-            audio.addEventListener('abort', () => { _diag.add('error', 'audio_event_abort', _diag.snapshotAudio(audio, currentStationKey)); });
-            audio.addEventListener('emptied', () => { _diag.add('info', 'audio_event_emptied', _diag.snapshotAudio(audio, currentStationKey)); });
+            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus('online'); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null); _diag.recordTimeline('audio playing event'); _diag.add('ok', 'audio_event_playing', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('stalled', () => { _diag.recordTimeline('audio stalled event'); _diag.add('warn', 'audio_event_stalled', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); if (isPlaying && !playbackStarted) { stallTimeout && clearTimeout(stallTimeout); stallTimeout = setTimeout(() => { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError('Буферизация...'); startPlayback(stations[currentStationKey]); } else { showError('Поток недоступен'); stopPlayback(); } }, 5000); } });
+            audio.addEventListener('error', (e) => { const err = audio.error; let msg = 'Ошибка воспроизведения'; if (err) { if (err.code === MediaError.MEDIA_ERR_NETWORK) msg = 'Ошибка сети'; else if (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) msg = 'Формат не поддерживается'; else if (err.code === MediaError.MEDIA_ERR_DECODE) msg = 'Ошибка декодирования'; else if (err.code === MediaError.MEDIA_ERR_ABORTED) msg = 'Загрузка прервана'; } _diag.recordTimeline(`audio error: ${msg}`); _diag.add('error', msg, { ..._diag.snapshotAudio(audio, currentStationKey, currentStreamUrl), errorMsg: err?.message }); if (isPlaying) { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError(`${msg}. Попытка ${reconnectAttempts}/${MAX_RECONNECT}`); setTimeout(() => startPlayback(stations[currentStationKey]), 1500); } else { showError(msg); stopPlayback(); } } });
+            audio.addEventListener('waiting', () => { _diag.recordTimeline('audio waiting event'); _diag.add('warn', 'audio_event_waiting', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); updateStatus('loading'); });
+            audio.addEventListener('loadstart', () => { _diag.recordTimeline('audio loadstart event'); _diag.add('info', 'audio_event_loadstart', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('abort', () => { _diag.recordTimeline('audio abort event'); _diag.add('error', 'audio_event_abort', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('emptied', () => { _diag.recordTimeline('audio emptied event'); _diag.add('info', 'audio_event_emptied', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('canplay', () => { _diag.recordTimeline('audio canplay event'); _diag.add('ok', 'audio_event_canplay', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('canplaythrough', () => { _diag.recordTimeline('audio canplaythrough event'); _diag.add('ok', 'audio_event_canplaythrough', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
         }
 
         try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); _diag.add('info', 'App initialized', _diag.getBrowserInfo()); _diag.snapshotAudio(audio, null); } catch (e) { _diag.add('error', `Init Error: ${e.message}`, { stack: e.stack }); console.error("Init Error:", e); }
