@@ -253,6 +253,7 @@
         let freqData = null;
         let vizAnimId = null;
         let isVizRunning = false;
+        let visualizerFallbackMode = false;
 
         const CONFIG = {
             NUM_NODES: 48,
@@ -297,15 +298,25 @@
             const w = rect.width, h = rect.height;
             canvasCtx.clearRect(0, 0, w, h);
 
-            if (!analyser || !freqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
-            analyser.getByteFrequencyData(freqData);
-            const binWidth = audioCtx.sampleRate / analyser.fftSize;
-            const maxFreqBin = Math.min(freqData.length - 1, Math.floor(CONFIG.MAX_FREQ / binWidth));
+            const hasLiveAnalyser = Boolean(analyser && freqData && audioCtx);
+            let maxFreqBin = 0;
+            if (hasLiveAnalyser) {
+                analyser.getByteFrequencyData(freqData);
+                const binWidth = audioCtx.sampleRate / analyser.fftSize;
+                maxFreqBin = Math.min(freqData.length - 1, Math.floor(CONFIG.MAX_FREQ / binWidth));
+            }
 
             for (let i = 0; i < CONFIG.NUM_NODES; i++) {
                 const ratio = i / (CONFIG.NUM_NODES - 1);
-                const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
-                const val = freqData[bin] / 255;
+                let val = 0;
+                if (hasLiveAnalyser) {
+                    const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
+                    val = freqData[bin] / 255;
+                } else {
+                    const t = Date.now() * 0.0018;
+                    val = 0.25 + 0.2 * Math.sin(t + i * 0.22) + 0.12 * Math.sin(t * 1.9 + i * 0.14);
+                    val = Math.max(0.05, Math.min(0.8, val));
+                }
                 nodes[i].x = (i / (CONFIG.NUM_NODES - 1)) * w;
                 nodes[i].targetY = h * CONFIG.BASE_Y - (val * h * CONFIG.NODE_HEIGHT);
                 nodes[i].y += (nodes[i].targetY - nodes[i].y) * 0.15;
@@ -357,6 +368,7 @@
             if (sourceNode) { try { sourceNode.disconnect(); } catch(e) {} sourceNode = null; }
             if (analyser) { try { analyser.disconnect(); } catch(e) {} analyser = null; }
             if (audioCtx && audioCtx.state !== 'closed') { audioCtx.close().catch(() => {}); audioCtx = null; }
+            visualizerFallbackMode = false;
         }
 
         window.Visualizer = {
@@ -469,7 +481,16 @@
         let isAudioSourceConnected = false;
         function startVisualization() {
             if (window.Visualizer) {
-                if (!isAudioSourceConnected) { window.Visualizer.connect(audio); isAudioSourceConnected = true; }
+                if (!isAudioSourceConnected && !visualizerFallbackMode) {
+                    try {
+                        window.Visualizer.connect(audio);
+                        isAudioSourceConnected = true;
+                    } catch (e) {
+                        visualizerFallbackMode = true;
+                        isAudioSourceConnected = false;
+                        console.warn('Visualizer switched to fallback mode:', e.message || e);
+                    }
+                }
                 window.Visualizer.start();
             }
         }
@@ -530,13 +551,13 @@
             isStartingPlayback = true;
             console.log(`🎵 Playing: ${station.stream}`); 
             playbackStarted = false; 
-            audio.src = `${station.stream}?t=${Date.now()}`;
+            audio.src = station.stream;
             try {
                 // Критично для iOS: play() должен быть в том же user gesture, без setTimeout.
                 await unlockAudioForIOS();
                 await resumeAudioContext();
-                startVisualization();
                 await audio.play();
+                startVisualization();
                 console.log('✅ Playback started');
                 isPlaying = true; playbackStarted = true;
                 if (!isReconnect) resetReconnectState();
@@ -558,8 +579,10 @@
                     if (IS_IOS && window.Visualizer) {
                         window.Visualizer.cleanup();
                         isAudioSourceConnected = false;
+                        visualizerFallbackMode = false;
                     }
                     await audio.play();
+                    startVisualization();
                     isPlaying = true;
                     playbackStarted = true;
                     if (!isReconnect) resetReconnectState();
