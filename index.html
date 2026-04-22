@@ -282,7 +282,7 @@
     <script>
         const _diag = {
             events: [], audioSnapshots: [], lastError: null, maxEvents: 100, startTime: Date.now(),
-            playbackTimeline: [], streamTests: [],
+            playbackTimeline: [], streamTests: [], internetTestResult: null,
             now() { return new Date().toISOString().replace('T', ' ').substring(0, 23); },
             add(type, message, data = {}) {
                 const entry = { time: this.now(), type, message, ...data };
@@ -316,6 +316,31 @@
                 this.playbackTimeline.push({ time: this.now(), step, ...data });
                 if (this.playbackTimeline.length > 20) this.playbackTimeline.shift();
             },
+            async testInternetConnectivity() {
+                const start = Date.now();
+                const result = { time: this.now() };
+                // Test with a reliable endpoint using no-cors
+                try {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 6000);
+                    const resp = await fetch('https://www.google.com/favicon.ico', {
+                        mode: 'no-cors', cache: 'no-store', signal: controller.signal
+                    });
+                    clearTimeout(timer);
+                    result.duration = Date.now() - start;
+                    result.ok = true;
+                    result.method = 'fetch no-cors (google)';
+                    _diag.add('ok', `Internet test OK (${result.duration}ms)`);
+                } catch (e) {
+                    result.duration = Date.now() - start;
+                    result.ok = false;
+                    result.error = e.name + ': ' + e.message;
+                    result.method = 'fetch no-cors (google)';
+                    _diag.add('error', `Internet test FAILED: ${result.error}`);
+                }
+                this.internetTestResult = result;
+                return result;
+            },
             async testStreamViaAudio(url, timeout = 8000) {
                 const start = Date.now();
                 const result = { url, time: this.now(), method: 'audio-element' };
@@ -326,47 +351,53 @@
                     testAudio.playsInline = true;
                     testAudio.muted = true;
                     testAudio.src = url;
+                    let settled = false;
+
+                    const settle = () => {
+                        if (settled) return;
+                        settled = true;
+                        testAudio.onplaying = null;
+                        testAudio.oncanplay = null;
+                        testAudio.onerror = null;
+                        testAudio.src = '';
+                        resolve(result);
+                    };
 
                     const timer = setTimeout(() => {
-                        testAudio.pause();
-                        testAudio.src = '';
                         result.duration = Date.now() - start;
                         result.error = 'Timeout';
                         result.timedOut = true;
-                        _diag.add('error', `Stream test (audio) TIMEOUT: ${url}`);
-                        resolve(result);
+                        _diag.add('warn', `Stream test (audio) TIMEOUT after ${result.duration}ms`);
+                        testAudio.pause();
+                        settle();
                     }, timeout);
 
-                    testAudio.addEventListener('playing', () => {
+                    testAudio.onplaying = () => {
                         clearTimeout(timer);
-                        testAudio.pause();
-                        testAudio.src = '';
                         result.duration = Date.now() - start;
                         result.ok = true;
                         result.playing = true;
-                        _diag.add('ok', `Stream test (audio) OK: ${url} (${result.duration}ms)`);
-                        resolve(result);
-                    });
-                    testAudio.addEventListener('canplay', () => {
+                        _diag.add('ok', `Stream test (audio) OK: playing (${result.duration}ms)`);
+                        settle();
+                    };
+                    testAudio.oncanplay = () => {
                         clearTimeout(timer);
-                        testAudio.pause();
-                        testAudio.src = '';
                         result.duration = Date.now() - start;
                         result.ok = true;
                         result.canPlay = true;
-                        _diag.add('ok', `Stream test (audio) canplay: ${url} (${result.duration}ms)`);
-                        resolve(result);
-                    });
-                    testAudio.addEventListener('error', () => {
+                        _diag.add('ok', `Stream test (audio) OK: canplay (${result.duration}ms)`);
+                        testAudio.pause();
+                        settle();
+                    };
+                    testAudio.onerror = () => {
                         clearTimeout(timer);
-                        testAudio.src = '';
                         result.duration = Date.now() - start;
                         result.error = testAudio.error ? testAudio.error.message : 'unknown';
                         result.errorCode = testAudio.error ? testAudio.error.code : 0;
                         result.errorText = testAudio.error ? ['(none)', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'][testAudio.error.code] : 'unknown';
-                        _diag.add('error', `Stream test (audio) FAILED: ${result.error}`);
-                        resolve(result);
-                    });
+                        _diag.add('error', `Stream test (audio) FAILED: ${result.errorText} (${result.errorCode})`);
+                        settle();
+                    };
                     testAudio.load();
                 });
             },
@@ -383,10 +414,9 @@
                     result.status = response.status;
                     result.ok = response.ok;
                     result.contentType = response.headers.get('Content-Type') || 'unknown';
-                    result.contentLength = response.headers.get('Content-Length') || 'unknown';
                     result.duration = result.fetchEnd - result.fetchStart;
                     result.iceHeader = response.headers.get('icy-name') || response.headers.get('icy-description') || 'none';
-                    _diag.add('ok', `Stream test (fetch) OK: ${result.status} ${result.contentType} (${result.duration}ms)`);
+                    _diag.add('ok', `Stream test (fetch) OK: ${result.status} (${result.duration}ms)`);
                 } catch (e) {
                     result.fetchEnd = Date.now();
                     result.duration = result.fetchEnd - result.fetchStart;
@@ -465,24 +495,36 @@
                 const lastSnap = this.audioSnapshots[0];
                 const lastTest = this.streamTests[this.streamTests.length - 1];
 
-                if (lastTest && lastTest.error && lastTest.isNetwork) {
-                    issues.push({ severity: 'error', msg: 'СЕРВЕР НЕДОСТУПЕН: fetch запрос к серверу полностью провалился (TypeError: Load failed). Это означает что домен не резолвится, порт закрыт, или сервер упал.', fix: 'Проверьте: 1) Работает ли сервер? 2) Доступен ли домен с телефона? 3) Открыты ли порты?' });
+                // Check internet connectivity first
+                if (this.internetTestResult && !this.internetTestResult.ok) {
+                    issues.push({ severity: 'error', msg: 'НЕТ ИНТЕРНЕТА: Тест подключения к Google не прошёл. Проблема не в сервере — нет доступа к интернету вообще.', fix: 'Проверьте: WiFi/мобильный интернет, авиарежим, настройки сети.' });
+                } else if (this.internetTestResult && this.internetTestResult.ok) {
+                    // Internet works, but server doesn't
+                    if (lastTest && lastTest.error && lastTest.isNetwork) {
+                        issues.push({ severity: 'error', msg: 'СЕРВЕР НЕДОСТУПЕН: Интернет работает, но сервер majesticradio.duckdns.org не отвечает. fetch вернул TypeError: Load failed.', fix: 'Возможные причины:\n1. Сервер выключен/упал\n2. DNS домена не резолвится (DuckDNS мог истечь)\n3. Порт сервера заблокирован файрволом или провайдером\n4. Сервер работает, но Icecast/Kraken не отвечает на запросы' });
+                    }
                 }
-                if (lastSnap && lastSnap.networkState === 3 && lastSnap.readyState === 0 && !lastSnap.error) {
-                    issues.push({ severity: 'error', msg: 'NETWORK=ERROR, READY=HAVE_NOTHING: браузер начал загрузку, но получил сетевую ошибку. Сервер вернул некорректный ответ или соединение было сброшено.' });
+
+                if (lastSnap && lastSnap.networkState === 3 && !lastSnap.error) {
+                    issues.push({ severity: 'error', msg: 'networkState=ERROR без audio.error: браузер начал загрузку, но соединение было разорвано. Это подтверждает что сервер не отвечает.' });
                 }
+
+                if (lastSnap && lastSnap.readyState === 1 && lastSnap.networkState === 2) {
+                    issues.push({ severity: 'warn', msg: 'readyState=HAVE_METADATA + networkState=LOADING: метаданные получены, но поток данных завис. Сервер может быть перегружен.' });
+                }
+
+                const stalledCount = this.events.filter(e => e.type === 'warn' && e.message && e.message.includes('stalled')).length;
+                if (stalledCount > 0) {
+                    issues.push({ severity: 'warn', msg: `Событие stalled ×${stalledCount}: поток данных остановился. Сервер перестал отправлять данные.` });
+                }
+
                 if (this.events.some(e => e.message && e.message.includes('AbortError'))) {
                     const abortCount = this.events.filter(e => e.message && e.message.includes('AbortError')).length;
-                    issues.push({ severity: 'warn', msg: `AbortError ×${abortCount}: audio.play() был прерван из-за вызова stopPlayback() во время ожидания. Это побочный эффект — реальная проблема в том, что сервер недоступен.` });
+                    issues.push({ severity: 'warn', msg: `AbortError ×${abortCount}: побочный эффект — play() прерывается из-за stopPlayback(). Реальная проблема — сервер недоступен.` });
                 }
-                if (lastSnap && (lastSnap.src === '(none)' || lastSnap.src === '')) {
-                    issues.push({ severity: 'warn', msg: 'Audio URL пуст в последнем снимке — src был очищен во время диагностики. URL сохраняется отдельно для отчёта.' });
-                }
-                if (b.isIOS) {
-                    issues.push({ severity: 'info', msg: 'iOS Safari: может блокировать autoplay без пользовательского жеста. Требуется прямое нажатие на Play.' });
-                }
+
                 if (issues.length === 0) {
-                    issues.push({ severity: 'ok', msg: 'Критических проблем не обнаружено. Попробуйте запустить тест потока из раздела "Тесты".' });
+                    issues.push({ severity: 'ok', msg: 'Критических проблем не обнаружено. Запустите полный тест из раздела "Тесты".' });
                 }
                 return issues;
             },
@@ -497,11 +539,12 @@
                     playbackStarted: typeof playbackStarted !== 'undefined' ? playbackStarted : false,
                     reconnectAttempts: typeof reconnectAttempts !== 'undefined' ? reconnectAttempts : 0,
                     audioSrc: streamUrl || '(none)',
+                    internetTest: this.internetTestResult,
                     snapshots: this.audioSnapshots.slice(0, 5),
                     playbackTimeline: this.playbackTimeline.slice(),
-                    streamTests: this.streamTests.slice(),
+                    streamTests: this.streamTests.slice(-5),
                     lastError: this.lastError,
-                    events: this.events.slice(0, 30),
+                    events: this.events.slice(0, 25),
                     analysis: this.analyze()
                 };
             },
@@ -529,12 +572,21 @@
                 lines.push(`Audio URL: ${data.audioSrc}`);
                 lines.push(`isPlaying: ${data.isPlaying}`); lines.push(`playbackStarted: ${data.playbackStarted}`);
                 lines.push(`reconnectAttempts: ${data.reconnectAttempts}`); lines.push('');
+
+                if (data.internetTest) {
+                    lines.push('─── INTERNET CONNECTIVITY ────────');
+                    lines.push(`Test: ${data.internetTest.method}`);
+                    lines.push(`Result: ${data.internetTest.ok ? 'OK' : 'FAILED'} (${data.internetTest.duration}ms)`);
+                    if (!data.internetTest.ok) lines.push(`Error: ${data.internetTest.error}`);
+                    lines.push('');
+                }
+
                 if (data.analysis && data.analysis.length > 0) {
                     lines.push('─── DIAGNOSIS ──────────────────────');
                     data.analysis.forEach(a => {
                         const icon = a.severity === 'error' ? '❌' : a.severity === 'warn' ? '⚠️' : a.severity === 'ok' ? '✅' : 'ℹ️';
                         lines.push(`${icon} [${a.severity.toUpperCase()}] ${a.msg}`);
-                        if (a.fix) lines.push(`   FIX: ${a.fix}`);
+                        if (a.fix) a.fix.split('\n').forEach(l => lines.push(`   ${l}`));
                     });
                     lines.push('');
                 }
@@ -550,7 +602,7 @@
                         lines.push(`  URL: ${t.url}`);
                         lines.push(`  Duration: ${t.duration}ms`);
                         if (t.ok) { lines.push(`  Status: ${t.status} OK`); lines.push(`  Content-Type: ${t.contentType}`); if (t.iceHeader !== 'none') lines.push(`  ICY: ${t.iceHeader}`); }
-                        else { lines.push(`  Error: ${t.error}`); if (t.isAbort !== undefined) lines.push(`  AbortError: ${t.isAbort}`); if (t.isNetwork !== undefined) lines.push(`  NetworkError: ${t.isNetwork}`); if (t.timedOut) lines.push(`  TIMED OUT`); }
+                        else { lines.push(`  Error: ${t.error}`); if (t.isAbort !== undefined) lines.push(`  Abort: ${t.isAbort}`); if (t.isNetwork !== undefined) lines.push(`  Network: ${t.isNetwork}`); if (t.timedOut) lines.push(`  TIMED OUT`); }
                     });
                     lines.push('');
                 }
@@ -562,18 +614,11 @@
                         lines.push(`  networkState: ${s.networkState} (${s.networkStateText})`);
                         lines.push(`  readyState: ${s.readyState} (${s.readyStateText})`);
                         lines.push(`  paused: ${s.paused} | muted: ${s.muted} | volume: ${s.volume}`);
-                        lines.push(`  currentTime: ${s.currentTime} | buffered: ${s.buffered}`);
                         lines.push(`  error: ${s.error ? `${s.error.text} (${s.error.code}) ${s.error.message || ''}` : 'none'}`);
                     });
                 }
                 if (data.lastError) { lines.push(''); lines.push('─── LAST ERROR ──────────────────────'); lines.push(`Time: ${data.lastError.time}`); lines.push(`Message: ${data.lastError.message}`); }
                 if (data.events.length > 0) { lines.push(''); lines.push(`─── RECENT EVENTS (${data.events.length}) ─`); data.events.slice(0, 20).forEach(e => { const icon = e.type === 'error' ? '❌' : e.type === 'warn' ? '⚠️' : e.type === 'ok' ? '✅' : 'ℹ️'; lines.push(`  ${e.time} ${icon} ${e.message}`); }); }
-                lines.push(''); lines.push('═══ IOS TROUBLESHOOTING ═══════════');
-                lines.push('1. Audio must be UNMUTED');
-                lines.push('2. Stream URL must use HTTPS');
-                lines.push('3. Server ports must be accessible');
-                lines.push('4. MP3 streams work best on iOS');
-                lines.push('5. Web Audio API requires user gesture');
                 lines.push('═══════════════════════════════════════');
                 return lines.join('\n');
             }
@@ -686,59 +731,22 @@
         function setCoverArt(artUrl) { if (!coverArt) return; if (artUrl?.trim()) { const img = new Image(); img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.src = artUrl; } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; } }
 
         function startPlayback(station) {
-            // Prevent concurrent playback attempts
-            if (isAttemptingPlayback) {
-                _diag.add('warn', 'startPlayback ignored: already attempting');
-                return;
-            }
+            if (isAttemptingPlayback) { _diag.add('warn', 'startPlayback ignored: already attempting'); return; }
             isAttemptingPlayback = true;
-
             const streamUrl = `${station.stream}?t=${Date.now()}`;
             currentStreamUrl = streamUrl;
-            _diag.add('info', `startPlayback: ${station.name}`, { stream: station.stream, attempt: reconnectAttempts + 1 });
+            _diag.add('info', `startPlayback: ${station.name} (attempt ${reconnectAttempts + 1})`);
             _diag.recordTimeline(`startPlayback (attempt ${reconnectAttempts + 1})`, { station: station.name });
-
-            playbackStarted = false;
-            updateStatus('loading');
-
-            // Clear all pending timers
-            stallTimeout && clearTimeout(stallTimeout);
-            playTimeout && clearTimeout(playTimeout);
-
-            // Reset audio properly
-            audio.pause();
-            _diag.recordTimeline('audio.pause()');
-
-            // Remove old src and create clean state
-            audio.removeAttribute('src');
-            audio.load();
-            _diag.recordTimeline('src removed + load()');
-
-            // iOS: ensure unmuted
-            audio.muted = false;
-            audio.volume = 1.0;
-            audio.preload = 'auto';
-            _diag.recordTimeline('muted=false, volume=1');
-
-            // Snapshot before setting src
+            playbackStarted = false; updateStatus('loading');
+            stallTimeout && clearTimeout(stallTimeout); playTimeout && clearTimeout(playTimeout);
+            audio.pause(); _diag.recordTimeline('audio.pause()');
+            audio.removeAttribute('src'); audio.load(); _diag.recordTimeline('src removed + load()');
+            audio.muted = false; audio.volume = 1.0; audio.preload = 'auto';
             _diag.snapshotAudio(audio, currentStationKey, '(clearing)');
-
-            // Set new src
-            audio.src = streamUrl;
-            _diag.recordTimeline('src set', { url: streamUrl });
-
-            // Load the new source
-            audio.load();
-            _diag.recordTimeline('audio.load()');
-            _diag.snapshotAudio(audio, currentStationKey, streamUrl);
-
-            // Web Audio API
+            audio.src = streamUrl; _diag.recordTimeline('src set');
+            audio.load(); _diag.snapshotAudio(audio, currentStationKey, streamUrl);
             if (!_cViz.audioCtx) _cViz.init(audio);
-            if (_cViz.audioCtx && _cViz.audioCtx.state === 'suspended') {
-                _cViz.audioCtx.resume().catch(() => {});
-            }
-
-            // Timeout: if nothing happens in 10 seconds, fail
+            if (_cViz.audioCtx && _cViz.audioCtx.state === 'suspended') _cViz.audioCtx.resume().catch(() => {});
             stallTimeout = setTimeout(() => {
                 if (!playbackStarted && isAttemptingPlayback) {
                     _diag.add('warn', 'Playback timeout (10s)');
@@ -748,77 +756,42 @@
                     if (reconnectAttempts <= MAX_RECONNECT) {
                         showError(`Нет ответа от сервера (${reconnectAttempts}/${MAX_RECONNECT})`);
                         setTimeout(() => startPlayback(station), 2000);
-                    } else {
-                        showError('Сервер не отвечает. Проверьте подключение.');
-                        stopPlayback();
-                    }
+                    } else { showError('Сервер не отвечает.'); stopPlayback(); }
                 }
             }, 10000);
-
-            // Try to play after a short delay for iOS
-            const tryPlayDelay = 300;
-            _diag.recordTimeline(`scheduling play() after ${tryPlayDelay}ms`);
             playTimeout = setTimeout(async () => {
                 if (!isAttemptingPlayback) return;
-                const playAttemptStart = Date.now();
+                const playStart = Date.now();
                 _diag.recordTimeline('calling audio.play()');
                 _diag.snapshotAudio(audio, currentStationKey, streamUrl);
-
                 try {
                     await audio.play();
-                    // Success!
-                    const playMs = Date.now() - playAttemptStart;
-                    _diag.recordTimeline('audio.play() RESOLVED', { ms: playMs });
-                    _diag.add('ok', `Playback started successfully (${playMs}ms)`);
+                    _diag.recordTimeline('audio.play() RESOLVED', { ms: Date.now() - playStart });
+                    _diag.add('ok', `Playback started (${Date.now() - playStart}ms)`);
                     isPlaying = true; playbackStarted = true; isAttemptingPlayback = false; reconnectAttempts = 0;
                     updatePlayButton(); _cViz.start(); updateStatus('online');
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
+                    stallTimeout && clearTimeout(stallTimeout);
                     _diag.snapshotAudio(audio, currentStationKey, streamUrl);
                     fetchMetadata(station.api);
                     metadataInterval && clearInterval(metadataInterval);
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                 } catch (err) {
-                    const playMs = Date.now() - playAttemptStart;
-                    _diag.recordTimeline(`audio.play() REJECTED: ${err.name}`, { ms: playMs });
-
-                    // Ignore AbortError if we're already stopping
-                    if (err.name === 'AbortError') {
-                        _diag.add('warn', `audio.play() aborted (likely due to stopPlayback call)`);
-                        isAttemptingPlayback = false;
-                        return;
-                    }
-
-                    _diag.add('error', `audio.play() rejected: ${err.name} ${err.message}`);
-
-                    if (err.name === 'NotAllowedError') {
-                        isAttemptingPlayback = false;
-                        showError('Нажмите Play ещё раз (iOS требует жест)');
-                    } else {
-                        isAttemptingPlayback = false;
-                        reconnectAttempts++;
-                        if (reconnectAttempts <= MAX_RECONNECT) {
-                            showError('Повторное подключение...');
-                            setTimeout(() => startPlayback(station), 1500);
-                        } else { showError('Не удалось подключиться к потоку.'); stopPlayback(); }
-                    }
+                    _diag.recordTimeline(`audio.play() REJECTED: ${err.name}`, { ms: Date.now() - playStart });
+                    if (err.name === 'AbortError') { _diag.add('warn', 'play() aborted by stopPlayback'); isAttemptingPlayback = false; return; }
+                    _diag.add('error', `play() rejected: ${err.name} ${err.message}`);
+                    isAttemptingPlayback = false;
+                    if (err.name === 'NotAllowedError') { showError('Нажмите Play ещё раз'); }
+                    else { reconnectAttempts++; if (reconnectAttempts <= MAX_RECONNECT) { showError('Повторное подключение...'); setTimeout(() => startPlayback(station), 1500); } else { showError('Не удалось подключиться.'); stopPlayback(); } }
                 }
-            }, tryPlayDelay);
+            }, 300);
         }
 
         function stopPlayback() {
-            _diag.add('info', 'stopPlayback', { wasPlaying: isPlaying, wasAttempting: isAttemptingPlayback });
-            _diag.recordTimeline('stopPlayback');
-
+            _diag.add('info', 'stopPlayback'); _diag.recordTimeline('stopPlayback');
             isAttemptingPlayback = false;
-            stallTimeout && clearTimeout(stallTimeout);
-            playTimeout && clearTimeout(playTimeout);
-
-            audio.pause();
-            audio.removeAttribute('src');
-            audio.load();
+            stallTimeout && clearTimeout(stallTimeout); playTimeout && clearTimeout(playTimeout);
+            audio.pause(); audio.removeAttribute('src'); audio.load();
             currentStreamUrl = null;
-
             isPlaying = false; playbackStarted = false;
             updatePlayButton(); _cViz.stop(); stopProgressAnimation(); updateStatus('idle');
             metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
@@ -826,17 +799,8 @@
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
 
-        function togglePlay() {
-            if (!currentStationKey || !stations[currentStationKey]) return;
-            isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]);
-        }
-
-        function updatePlayButton() {
-            playIcon.style.display = isPlaying ? 'none' : 'block';
-            pauseIcon.style.display = isPlaying ? 'block' : 'none';
-            coverArt.classList.toggle('playing', isPlaying);
-        }
-
+        function togglePlay() { if (!currentStationKey || !stations[currentStationKey]) return; isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]); }
+        function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
         async function fetchMetadata(apiUrl) { if (!isPlaying) return; try { const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' }); if (!response.ok) return; const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {}; if (song) { trackTitleEl.textContent = song.title || 'Unknown Track'; trackArtistEl.textContent = song.artist || 'Unknown Artist'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); } } if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); } } catch (e) {} }
 
         // === DIAGNOSTICS UI ===
@@ -845,45 +809,46 @@
             const b = data.browser;
             let html = '';
 
-            // Analysis section
+            // Analysis
             if (data.analysis && data.analysis.length > 0) {
                 data.analysis.forEach(a => {
                     const cls = a.severity === 'error' ? 'err' : a.severity === 'ok' ? 'ok' : '';
                     const icon = a.severity === 'error' ? '❌' : a.severity === 'warn' ? '⚠️' : a.severity === 'ok' ? '✅' : 'ℹ️';
                     html += `<div class="diag-analysis ${cls}">${icon} ${a.msg}`;
-                    if (a.fix) html += `<br><small>💡 ${a.fix}</small>`;
+                    if (a.fix) html += `<br><small>💡 ${a.fix.replace(/\n/g, '<br>')}</small>`;
                     html += `</div>`;
                 });
+            }
+
+            // Internet status
+            if (data.internetTest) {
+                html += `<div class="diag-section"><div class="diag-section-title">Интернет</div>`;
+                html += `<div class="diag-row"><span class="diag-label">Подключение</span><span class="diag-value ${data.internetTest.ok ? 'ok' : 'error'}">${data.internetTest.ok ? 'Работает ✅' : 'Не работает ❌'}</span></div>`;
+                html += `<div class="diag-row"><span class="diag-label">Время отклика</span><span class="diag-value">${data.internetTest.duration}ms</span></div>`;
+                if (!data.internetTest.ok) html += `<div class="diag-row"><span class="diag-label">Ошибка</span><span class="diag-value error">${data.internetTest.error}</span></div>`;
+                html += `</div>`;
             }
 
             html += `<div class="diag-section"><div class="diag-section-title">Браузер</div>`;
             html += `<div class="diag-row"><span class="diag-label">Платформа</span><span class="diag-value">${b.platform}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">Браузер</span><span class="diag-value">${b.browserName}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">iOS</span><span class="diag-value ${b.isIOS ? 'warn' : 'ok'}">${b.isIOS ? 'Да' + (b.iosVersion ? ` v${b.iosVersion}` : '') : 'Нет'}</span></div>`;
-            html += `<div class="diag-row"><span class="diag-label">Telegram WebView</span><span class="diag-value">${b.isTelegramWebView ? 'Да' : 'Нет'}</span></div>`;
-            html += `<div class="diag-row"><span class="diag-label">PWA</span><span class="diag-value">${b.isPWA ? 'Да' : 'Нет'}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">Online</span><span class="diag-value ${b.online ? 'ok' : 'error'}">${b.online ? 'Да' : 'Нет'}</span></div>`;
             if (typeof b.connection !== 'string') html += `<div class="diag-row"><span class="diag-label">Сеть</span><span class="diag-value">${b.connection.effectiveType} ${b.connection.downlink}Mbps RTT:${b.connection.rtt}ms</span></div>`;
             html += `</div>`;
+
             html += `<div class="diag-section"><div class="diag-section-title">Кодеки</div>`;
             for (const [k, v] of Object.entries(data.codecs)) { const cls = (v === 'probably' || v === 'maybe') ? 'ok' : (v === '' ? 'error' : 'warn'); html += `<div class="diag-row"><span class="diag-label">${k}</span><span class="diag-value ${cls}">${v || 'нет'}</span></div>`; }
             html += `</div>`;
-            html += `<div class="diag-section"><div class="diag-section-title">Web Audio API</div>`;
-            html += `<div class="diag-row"><span class="diag-label">Инициализирован</span><span class="diag-value ${data.webAudio.initialized ? 'ok' : 'error'}">${data.webAudio.initialized ? 'Да' : 'Нет'}</span></div>`;
-            if (data.webAudio.initialized) { html += `<div class="diag-row"><span class="diag-label">State</span><span class="diag-value ${data.webAudio.state === 'running' ? 'ok' : 'warn'}">${data.webAudio.state}</span></div>`; html += `<div class="diag-row"><span class="diag-label">Sample Rate</span><span class="diag-value">${data.webAudio.sampleRate}Hz</span></div>`; }
-            html += `</div>`;
+
             html += `<div class="diag-section"><div class="diag-section-title">Состояние</div>`;
             html += `<div class="diag-row"><span class="diag-label">Станция</span><span class="diag-value">${data.currentStation || '—'}</span></div>`;
-            html += `<div class="diag-row"><span class="diag-label">Audio URL</span><span class="diag-value" style="font-size:10px">${data.audioSrc}</span></div>`;
-            html += `<div class="diag-row"><span class="diag-label">isPlaying</span><span class="diag-value ${data.isPlaying ? 'ok' : ''}">${data.isPlaying}</span></div>`;
-            html += `<div class="diag-row"><span class="diag-label">playbackStarted</span><span class="diag-value ${data.playbackStarted ? 'ok' : 'warn'}">${data.playbackStarted}</span></div>`;
             html += `<div class="diag-row"><span class="diag-label">Повторы</span><span class="diag-value">${data.reconnectAttempts}</span></div>`;
-            html += `<div class="diag-row"><span class="diag-label">isAttempting</span><span class="diag-value ${isAttemptingPlayback ? 'warn' : ''}">${isAttemptingPlayback ? 'Да' : 'Нет'}</span></div>`;
             html += `</div>`;
 
             if (data.playbackTimeline.length > 0) {
-                html += `<div class="diag-section"><div class="diag-section-title">Таймлайн воспроизведения</div>`;
-                data.playbackTimeline.forEach(t => { const icon = t.step.includes('REJECTED') ? '❌' : t.step.includes('RESOLVED') ? '✅' : '·'; html += `<div class="diag-row"><span class="diag-value" style="max-width:100%;font-size:11px">${icon} [${t.time.substring(11)}] ${t.step}${t.ms ? ` (${t.ms}ms)` : ''}</span></div>`; });
+                html += `<div class="diag-section"><div class="diag-section-title">Таймлайн</div>`;
+                data.playbackTimeline.forEach(t => { const icon = t.step.includes('REJECTED') ? '❌' : t.step.includes('RESOLVED') ? '✅' : t.step.includes('timeout') ? '⏱️' : '·'; html += `<div class="diag-row"><span class="diag-value" style="max-width:100%;font-size:11px">${icon} [${t.time.substring(11)}] ${t.step}${t.ms ? ` (${t.ms}ms)` : ''}</span></div>`; });
                 html += `</div>`;
             }
 
@@ -891,7 +856,7 @@
                 html += `<div class="diag-section"><div class="diag-section-title">Тесты потока</div>`;
                 data.streamTests.forEach((t, i) => {
                     html += `<div class="diag-row"><span class="diag-label">#${i + 1} (${t.method})</span>`;
-                    if (t.ok) { html += `<span class="diag-value ok">${t.status} ${t.contentType} (${t.duration}ms)</span>`; }
+                    if (t.ok) { html += `<span class="diag-value ok">${t.status} (${t.duration}ms)</span>`; }
                     else if (t.timedOut) { html += `<span class="diag-value warn">TIMEOUT (${t.duration}ms)</span>`; }
                     else { html += `<span class="diag-value error">${t.error} (${t.duration}ms)</span>`; }
                     html += `</div>`;
@@ -901,79 +866,76 @@
 
             if (data.snapshots.length > 0) {
                 const s = data.snapshots[0];
-                html += `<div class="diag-section"><div class="diag-section-title">Audio Element (последний снимок)</div>`;
-                html += `<div class="diag-row"><span class="diag-label">URL</span><span class="diag-value" style="font-size:10px">${s.src}</span></div>`;
+                html += `<div class="diag-section"><div class="diag-section-title">Audio Element</div>`;
                 html += `<div class="diag-row"><span class="diag-label">networkState</span><span class="diag-value ${s.networkState === 3 ? 'error' : s.networkState === 1 ? 'warn' : 'ok'}">${s.networkState} (${s.networkStateText})</span></div>`;
                 html += `<div class="diag-row"><span class="diag-label">readyState</span><span class="diag-value ${s.readyState === 0 ? 'warn' : 'ok'}">${s.readyState} (${s.readyStateText})</span></div>`;
-                html += `<div class="diag-row"><span class="diag-label">muted</span><span class="diag-value ${s.muted ? 'error' : 'ok'}">${s.muted}</span></div>`;
-                html += `<div class="diag-row"><span class="diag-label">volume</span><span class="diag-value">${s.volume}</span></div>`;
                 html += `<div class="diag-row"><span class="diag-label">error</span><span class="diag-value ${s.error ? 'error' : 'ok'}">${s.error ? `${s.error.text} (${s.error.code})` : 'none'}</span></div>`;
                 html += `</div>`;
             }
 
             html += `<div class="diag-section"><div class="diag-section-title">События</div>`;
             html += `<div class="diag-events">`;
-            data.events.slice(0, 30).forEach(e => { const cls = e.type === 'error' ? 'ev-type-err' : e.type === 'warn' ? 'ev-type-warn' : e.type === 'ok' ? 'ev-type-ok' : 'ev-type-info'; const icon = e.type === 'error' ? '❌' : e.type === 'warn' ? '⚠️' : e.type === 'ok' ? '✅' : 'ℹ️'; html += `<div class="diag-event"><span class="ev-time">${e.time.substring(11)}</span><span class="${cls}">${icon} ${e.message}</span></div>`; });
+            data.events.slice(0, 25).forEach(e => { const cls = e.type === 'error' ? 'ev-type-err' : e.type === 'warn' ? 'ev-type-warn' : e.type === 'ok' ? 'ev-type-ok' : 'ev-type-info'; const icon = e.type === 'error' ? '❌' : e.type === 'warn' ? '⚠️' : e.type === 'ok' ? '✅' : 'ℹ️'; html += `<div class="diag-event"><span class="ev-time">${e.time.substring(11)}</span><span class="${cls}">${icon} ${e.message}</span></div>`; });
             html += `</div></div>`;
 
             // Test buttons
-            html += `<div class="diag-section"><div class="diag-section-title">Тесты подключения</div>`;
-            html += `<button class="diag-test-btn" id="diag-test-audio-btn">🔊 Тест потока (audio element)</button>`;
+            html += `<div class="diag-section"><div class="diag-section-title">Тесты</div>`;
+            html += `<button class="diag-test-btn" id="diag-test-internet-btn">🌐 Тест интернета</button>`;
+            html += `<div class="diag-test-result" id="diag-test-internet-result" style="display:none"></div>`;
+            html += `<button class="diag-test-btn" id="diag-test-audio-btn">🔊 Тест потока (audio)</button>`;
             html += `<div class="diag-test-result" id="diag-test-audio-result" style="display:none"></div>`;
             html += `<button class="diag-test-btn" id="diag-test-fetch-btn">🌐 Тест потока (fetch)</button>`;
             html += `<div class="diag-test-result" id="diag-test-fetch-result" style="display:none"></div>`;
-            html += `<button class="diag-test-btn" id="diag-test-dns-btn">🔍 Тест DNS</button>`;
-            html += `<div class="diag-test-result" id="diag-test-dns-result" style="display:none"></div>`;
             html += `</div>`;
 
             diagBody.innerHTML = html;
 
-            // Test: audio element
+            // Internet test
+            const testInternetBtn = document.getElementById('diag-test-internet-btn');
+            const testInternetResult = document.getElementById('diag-test-internet-result');
+            if (testInternetBtn) {
+                testInternetBtn.addEventListener('click', async () => {
+                    testInternetBtn.disabled = true; testInternetBtn.textContent = '⏳ Тестирование...';
+                    testInternetResult.style.display = 'block'; testInternetResult.textContent = 'Проверка подключения к интернету...';
+                    const res = await _diag.testInternetConnectivity();
+                    if (res.ok) { testInternetResult.className = 'diag-test-result ok'; testInternetResult.textContent = `✅ Интернет работает\nОтклик: ${res.duration}ms\nМетод: ${res.method}`; }
+                    else { testInternetResult.className = 'diag-test-result err'; testInternetResult.textContent = `❌ Нет интернета!\nОшибка: ${res.error}\nЭто значит что проблема не в сервере, а в подключении.`; }
+                    testInternetBtn.disabled = false; testInternetBtn.textContent = '🌐 Тест интернета';
+                });
+            }
+
+            // Audio test
             const testAudioBtn = document.getElementById('diag-test-audio-btn');
             const testAudioResult = document.getElementById('diag-test-audio-result');
             if (testAudioBtn) {
                 testAudioBtn.addEventListener('click', async () => {
                     testAudioBtn.disabled = true; testAudioBtn.textContent = '⏳ Тестирование...';
-                    testAudioResult.style.display = 'block'; testAudioResult.textContent = 'Тестирование через audio element...';
+                    testAudioResult.style.display = 'block'; testAudioResult.textContent = 'Тест через audio element...';
                     const station = stations[currentStationKey];
                     if (station) {
                         const res = await _diag.testStreamViaAudio(station.stream);
                         _diag.streamTests.push(res);
-                        if (res.ok) { testAudioResult.className = 'diag-test-result ok'; testAudioResult.textContent = `✅ ПОТОК ДОСТУПЕН!\nДлительность: ${res.duration}ms\n${res.playing ? 'playing event received' : 'canplay event received'}`; }
-                        else { testAudioResult.className = 'diag-test-result err'; testAudioResult.textContent = `❌ ПОТОК НЕДОСТУПЕН\nОшибка: ${res.error}\nКод: ${res.errorText} (${res.errorCode})\nДлительность: ${res.duration}ms`; }
+                        if (res.ok) { testAudioResult.className = 'diag-test-result ok'; testAudioResult.textContent = `✅ ПОТОК РАБОТАЕТ!\n${res.playing ? 'playing' : 'canplay'} (${res.duration}ms)`; }
+                        else { testAudioResult.className = 'diag-test-result err'; testAudioResult.textContent = `❌ ПОТОК НЕДОСТУПЕН\nОшибка: ${res.errorText} (${res.errorCode})\n${res.timedOut ? 'TIMEOUT — сервер не ответил' : res.duration + 'ms'}`; }
                     } else { testAudioResult.textContent = '❌ Нет выбранной станции'; testAudioResult.className = 'diag-test-result err'; }
-                    testAudioBtn.disabled = false; testAudioBtn.textContent = '🔊 Тест потока (audio element)';
+                    testAudioBtn.disabled = false; testAudioBtn.textContent = '🔊 Тест потока (audio)';
                 });
             }
 
-            // Test: fetch
+            // Fetch test
             const testFetchBtn = document.getElementById('diag-test-fetch-btn');
             const testFetchResult = document.getElementById('diag-test-fetch-result');
             if (testFetchBtn) {
                 testFetchBtn.addEventListener('click', async () => {
                     testFetchBtn.disabled = true; testFetchBtn.textContent = '⏳ Тестирование...';
-                    testFetchResult.style.display = 'block'; testFetchResult.textContent = 'Тестирование через fetch...';
+                    testFetchResult.style.display = 'block'; testFetchResult.textContent = 'Тест через fetch...';
                     const station = stations[currentStationKey];
                     if (station) {
                         const res = await _diag.testStreamViaFetch(station.stream);
-                        if (res.ok) { testFetchResult.className = 'diag-test-result ok'; testFetchResult.textContent = `✅ OK: ${res.status} ${res.contentType}\nДлительность: ${res.duration}ms\nICY: ${res.iceHeader}`; }
-                        else { testFetchResult.className = 'diag-test-result err'; testFetchResult.textContent = `❌ FAILED: ${res.error}\nДлительность: ${res.duration}ms\nAbort: ${res.isAbort} | Network: ${res.isNetwork}`; }
+                        if (res.ok) { testFetchResult.className = 'diag-test-result ok'; testFetchResult.textContent = `✅ OK: ${res.status} (${res.duration}ms)\nContent-Type: ${res.contentType}`; }
+                        else { testFetchResult.className = 'diag-test-result err'; testFetchResult.textContent = `❌ FAILED: ${res.error}\nNetwork: ${res.isNetwork} | Abort: ${res.isAbort}\n${res.duration}ms`; }
                     } else { testFetchResult.textContent = '❌ Нет выбранной станции'; testFetchResult.className = 'diag-test-result err'; }
                     testFetchBtn.disabled = false; testFetchBtn.textContent = '🌐 Тест потока (fetch)';
-                });
-            }
-
-            // Test: DNS
-            const testDnsBtn = document.getElementById('diag-test-dns-btn');
-            const testDnsResult = document.getElementById('diag-test-dns-result');
-            if (testDnsBtn) {
-                testDnsBtn.addEventListener('click', async () => {
-                    testDnsBtn.disabled = true; testDnsBtn.textContent = '⏳ Тестирование...';
-                    testDnsResult.style.display = 'block'; testDnsResult.textContent = 'Тестирование DNS...';
-                    const res = await _diag.testDNS('majesticradio.duckdns.org');
-                    if (res.resolved) { testDnsResult.className = 'diag-test-result ok'; testDnsResult.textContent = `✅ DNS resolved\nДлительность: ${res.duration}ms`; }
-                    else { testDnsResult.className = 'diag-test-result err'; testDnsResult.textContent = `❌ DNS failed: ${res.error}\nДлительность: ${res.duration}ms`; }
-                    testDnsBtn.disabled = false; testDnsBtn.textContent = '🔍 Тест DNS';
                 });
             }
         }
@@ -982,7 +944,7 @@
         function closeDiagnostics() { diagOverlay.classList.remove('open'); }
         async function copyDiagnostics() {
             const text = _diag.toText(audio, _cViz, currentStationKey, currentStreamUrl);
-            try { await navigator.clipboard.writeText(text); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); _diag.add('info', 'Diagnostics copied to clipboard'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); } catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); }
+            try { await navigator.clipboard.writeText(text); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); _diag.add('info', 'Diagnostics copied'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); } catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); diagCopyBtn.textContent = '✅ Скопировано!'; diagCopyBtn.classList.add('copied'); setTimeout(() => { diagCopyBtn.textContent = '📋 Скопировать отчёт'; diagCopyBtn.classList.remove('copied'); }, 2000); }
         }
 
         function setupEventListeners() {
@@ -1000,64 +962,19 @@
             let globalStartX = 0, globalStartY = 0;
             document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
             document.addEventListener('touchend', (e) => { if (stationsOpen) return; const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY; Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click()); }, { passive: true });
-
-            audio.addEventListener('playing', () => {
-                playbackStarted = true; isAttemptingPlayback = false;
-                updateStatus('online');
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                stallTimeout && (clearTimeout(stallTimeout), stallTimeout = null);
-                playTimeout && clearTimeout(playTimeout);
-                _diag.recordTimeline('audio playing event');
-                _diag.add('ok', 'audio_event_playing', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
-            audio.addEventListener('stalled', () => {
-                _diag.recordTimeline('audio stalled event');
-                _diag.add('warn', 'audio_event_stalled', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
-            audio.addEventListener('error', (e) => {
-                const err = audio.error;
-                let msg = 'Ошибка воспроизведения';
-                if (err) {
-                    if (err.code === MediaError.MEDIA_ERR_NETWORK) msg = 'Ошибка сети';
-                    else if (err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) msg = 'Формат не поддерживается';
-                    else if (err.code === MediaError.MEDIA_ERR_DECODE) msg = 'Ошибка декодирования';
-                    else if (err.code === MediaError.MEDIA_ERR_ABORTED) msg = 'Загрузка прервана';
-                }
-                _diag.recordTimeline(`audio error: ${msg} (code=${err?.code})`);
-                _diag.add('error', msg, { ..._diag.snapshotAudio(audio, currentStationKey, currentStreamUrl), errorMsg: err?.message });
-                // Don't auto-reconnect on error from audio element - let the play() catch handle it
-            });
-            audio.addEventListener('waiting', () => {
-                _diag.recordTimeline('audio waiting event');
-                _diag.add('warn', 'audio_event_waiting', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-                updateStatus('loading');
-            });
-            audio.addEventListener('loadstart', () => {
-                _diag.recordTimeline('audio loadstart event');
-                _diag.add('info', 'audio_event_loadstart', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
-            audio.addEventListener('abort', () => {
-                _diag.recordTimeline('audio abort event');
-                _diag.add('warn', 'audio_event_abort', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
-            audio.addEventListener('emptied', () => {
-                _diag.recordTimeline('audio emptied event');
-                _diag.add('info', 'audio_event_emptied', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
-            audio.addEventListener('canplay', () => {
-                _diag.recordTimeline('audio canplay event');
-                _diag.add('ok', 'audio_event_canplay', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
-            audio.addEventListener('canplaythrough', () => {
-                _diag.recordTimeline('audio canplaythrough event');
-                _diag.add('ok', 'audio_event_canplaythrough', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl));
-            });
+            audio.addEventListener('playing', () => { playbackStarted = true; isAttemptingPlayback = false; updateStatus('online'); stallTimeout && clearTimeout(stallTimeout); _diag.recordTimeline('audio playing'); _diag.add('ok', 'playing', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('stalled', () => { _diag.recordTimeline('audio stalled'); _diag.add('warn', 'stalled', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('error', (e) => { const err = audio.error; let msg = err ? ['(none)', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'][err.code] || 'UNKNOWN' : 'unknown'; _diag.recordTimeline(`audio error: ${msg}`); _diag.add('error', `audio error: ${msg}`, { ..._diag.snapshotAudio(audio, currentStationKey, currentStreamUrl), code: err?.code }); });
+            audio.addEventListener('waiting', () => { _diag.recordTimeline('audio waiting'); _diag.add('warn', 'waiting', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); updateStatus('loading'); });
+            audio.addEventListener('loadstart', () => { _diag.recordTimeline('audio loadstart'); _diag.add('info', 'loadstart', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('abort', () => { _diag.recordTimeline('audio abort'); _diag.add('warn', 'abort', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('emptied', () => { _diag.recordTimeline('audio emptied'); _diag.add('info', 'emptied', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('canplay', () => { _diag.recordTimeline('audio canplay'); _diag.add('ok', 'canplay', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
+            audio.addEventListener('canplaythrough', () => { _diag.recordTimeline('audio canplaythrough'); _diag.add('ok', 'canplaythrough', _diag.snapshotAudio(audio, currentStationKey, currentStreamUrl)); });
         }
 
-        try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); _diag.add('info', 'App initialized', _diag.getBrowserInfo()); _diag.snapshotAudio(audio, null); } catch (e) { _diag.add('error', `Init Error: ${e.message}`, { stack: e.stack }); console.error("Init Error:", e); }
-
+        try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); _diag.add('info', 'App initialized'); } catch (e) { _diag.add('error', `Init Error: ${e.message}`); console.error(e); }
         if (window.Telegram && window.Telegram.WebApp) { try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand && tg.expand(); if (tg.themeParams) { if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color); if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color); } } catch (e) {} }
-
         window.addEventListener('resize', () => { if (_cViz.ctx) { const c = document.getElementById('viz-canvas'); const dpr = window.devicePixelRatio || 1; const rect = c.getBoundingClientRect(); c.width = rect.width * dpr; c.height = rect.height * dpr; } });
         window.addEventListener('beforeunload', () => { stopPlayback(); _cViz.cleanup(); });
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, diagnostics: _diag };
