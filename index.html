@@ -1,19 +1,4 @@
-
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  background-color: white; /* Ensure the iframe has a white background */
-                }
-
-                
-              </style>
-                        </head>
-                        <body>
-                            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -83,17 +68,12 @@
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
-        /* ===== CONSTELLATION VISUALIZER ===== */
+        /* 🔥 CONSTELLATION VISUALIZER */
         .viz-container {
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            width: 100%; height: 50%;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.4s ease;
-            background: linear-gradient(to top, rgba(10, 5, 20, 0.7) 0%, rgba(10, 5, 20, 0.3) 40%, transparent 100%);
-            border-bottom-left-radius: var(--border-radius);
-            border-bottom-right-radius: var(--border-radius);
+            position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 50%;
+            pointer-events: none; opacity: 0; transition: opacity 0.5s ease;
+            background: linear-gradient(to top, rgba(10, 5, 20, 0.8) 0%, rgba(10, 5, 20, 0.3) 40%, transparent 100%);
+            border-bottom-left-radius: var(--border-radius); border-bottom-right-radius: var(--border-radius);
             overflow: hidden;
         }
         .viz-container.active { opacity: 1; }
@@ -176,10 +156,7 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
-                <!-- 🔥 Constellation Visualizer Canvas -->
-                <div class="viz-container" id="viz-container">
-                    <canvas id="viz-canvas"></canvas>
-                </div>
+                <div class="viz-container" id="viz-container"><canvas id="viz-canvas"></canvas></div>
             </div>
             <div class="track-info">
                 <h2 class="track-title placeholder" id="track-title">—</h2>
@@ -210,14 +187,15 @@
     
     <script>
         // ===============================
-        // 🎨 CONSTELLATION VISUALIZER (интегрированный)
+        // 🎨 CONSTELLATION VISUALIZER (iOS Safari Optimized)
         // ===============================
         const _cViz = {
             ctx: null, analyser: null, srcNode: null, freqData: null, animId: null,
             running: false, audioCtx: null,
             CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.95 },
             nodes: [],
-            
+            silentFrames: 0,
+
             init(audioElement) {
                 if (this.audioCtx) return true;
                 try {
@@ -227,107 +205,85 @@
                     this.analyser.fftSize = this.CONFIG.FFT_SIZE;
                     this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
                     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-                    // 🔥 Ключевое: создаём источник только после того как аудио готово
+
                     this.srcNode = this.audioCtx.createMediaElementSource(audioElement);
                     this.srcNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
-                    console.log('✅ Visualizer AudioContext initialized');
+                    console.log('✅ Visualizer initialized');
                     return true;
-                } catch (e) { console.error('❌ Visualizer Web Audio error:', e.message); return false; }
+                } catch (e) {
+                    console.error('❌ Visualizer init failed:', e);
+                    return false;
+                }
             },
-            
+
             draw() {
                 const c = document.getElementById('viz-canvas');
+                if (!c) return;
                 const ctx = this.ctx || c.getContext('2d');
                 this.ctx = ctx;
                 const dpr = window.devicePixelRatio || 1;
                 const rect = c.getBoundingClientRect();
-                c.width = rect.width * dpr;
-                c.height = rect.height * dpr;
+                c.width = rect.width * dpr; c.height = rect.height * dpr;
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 const w = rect.width, h = rect.height;
                 ctx.clearRect(0, 0, w, h);
                 
-                if (!this.analyser || !this.freqData) {
-                    this.animId = requestAnimationFrame(() => this.draw());
-                    return;
-                }
+                if (!this.analyser || !this.freqData) { this.animId = requestAnimationFrame(() => this.draw()); return; }
                 
                 this.analyser.getByteFrequencyData(this.freqData);
+                
+                // 🔍 Диагностика: проверка на тишину (CORS-блокировка)
+                let maxVal = 0;
+                for(let i=0; i<this.freqData.length; i++) if(this.freqData[i] > maxVal) maxVal = this.freqData[i];
+                if (maxVal === 0) {
+                    this.silentFrames++;
+                    if (this.silentFrames === 60) console.warn('⚠️ Analyser returning 0 for 2s. Check CORS headers for HLS!');
+                } else this.silentFrames = 0;
+
                 const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
                 const maxBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
-                
-                if (this.nodes.length !== this.CONFIG.NUM_NODES) {
-                    this.nodes = [];
-                    for (let i = 0; i < this.CONFIG.NUM_NODES; i++) this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
-                }
+                if (this.nodes.length !== this.CONFIG.NUM_NODES) this.nodes = Array.from({length: this.CONFIG.NUM_NODES}, () => ({x:0,y:0,energy:0,targetY:0}));
                 
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const ratio = i / (this.CONFIG.NUM_NODES - 1);
-                    const bin = Math.max(0, Math.floor(ratio * maxBin));
-                    const val = this.freqData[bin] / 255;
+                    const val = this.freqData[Math.max(0, Math.floor(ratio * maxBin))] / 255;
                     this.nodes[i].x = ratio * w;
                     this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
-                    this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
+                    this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.12;
                     this.nodes[i].energy = val;
                 }
                 
                 ctx.lineWidth = 0.8;
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
-                        const dx = this.nodes[i].x - this.nodes[j].x;
-                        const dy = this.nodes[i].y - this.nodes[j].y;
-                        const distSq = dx * dx + dy * dy;
-                        if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) {
+                        const dx = this.nodes[i].x - this.nodes[j].x, dy = this.nodes[i].y - this.nodes[j].y;
+                        const distSq = dx*dx + dy*dy;
+                        if (distSq < this.CONFIG.CONN_DISTANCE ** 2) {
                             const dist = Math.sqrt(distSq);
-                            const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy);
-                            ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                            ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, (1 - dist/this.CONFIG.CONN_DISTANCE) * 0.4 * (0.5 + this.nodes[i].energy + this.nodes[j].energy))})`;
                             ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke();
                         }
                     }
                 }
-                
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const n = this.nodes[i];
-                    const r = 1.2 + n.energy * 3.5;
-                    const alpha = 0.4 + n.energy * 0.6;
-                    ctx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`; ctx.shadowBlur = 6;
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                    ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+                    ctx.shadowColor = `rgba(167, 139, 250, ${n.energy * 0.6})`; ctx.shadowBlur = 6;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + n.energy * 0.6})`;
+                    ctx.beginPath(); ctx.arc(n.x, n.y, 1.2 + n.energy * 3.5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
                 }
-                
                 this.animId = requestAnimationFrame(() => this.draw());
             },
-            
+
             start() {
                 document.getElementById('viz-container').classList.add('active');
-                if (!this.running) {
-                    this.running = true;
-                    cancelAnimationFrame(this.animId);
-                    this.draw();
-                    console.log('▶ Visualizer started');
-                }
+                if (!this.running) { this.running = true; cancelAnimationFrame(this.animId); this.silentFrames = 0; this.draw(); }
             },
-            
             stop() {
                 document.getElementById('viz-container').classList.remove('active');
-                this.running = false;
-                cancelAnimationFrame(this.animId);
-                if (this.ctx) {
-                    const c = document.getElementById('viz-canvas');
-                    const rect = c.getBoundingClientRect();
-                    this.ctx.clearRect(0, 0, rect.width, rect.height);
-                }
-                console.log('⏹ Visualizer stopped');
+                this.running = false; cancelAnimationFrame(this.animId);
             },
-            
-            cleanup() {
-                this.stop();
-                if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} this.srcNode = null; }
-                if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; }
-                if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(() => {}); this.audioCtx = null; }
-                console.log('🧹 Visualizer cleanup done');
-            }
+            cleanup() { this.stop(); if(this.srcNode){try{this.srcNode.disconnect();}catch(e){} this.srcNode=null;} if(this.audioCtx){this.audioCtx.close().catch(()=>{}); this.audioCtx=null;} }
         };
 
         // ===============================
@@ -340,18 +296,11 @@
             old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',
             progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',
             psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',
-            // 🔥 HLS + fallback для dark_room
-            dark_room: {
-                hls: 'https://majesticradio.duckdns.org/hls/dark_room/live.m3u8',
-                mp3: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'
-            }
+            dark_room: { hls: 'https://majesticradio.duckdns.org/hls/dark_room/live.m3u8', mp3: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3' }
         };
         const BASE_URL = 'https://majesticradio.duckdns.org';
         const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
-        const STATION_NAMES = {
-            liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
-            old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
-        };
+        const STATION_NAMES = { liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill', old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room' };
 
         const audio = document.getElementById('audio-player');
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
@@ -372,220 +321,87 @@
 
         function isSafari() { return /^((?!chrome|android).)*safari/i.test(navigator.userAgent); }
         function isHlsSupported() { return isSafari() || (typeof Hls !== 'undefined' && Hls.isSupported()); }
-        function getStreamUrl(stationKey) {
-            const url = STREAM_URLS[stationKey];
-            if (url && typeof url === 'object' && url.hls && url.mp3) {
-                if (isHlsSupported()) { console.log(`🔗 Using HLS for ${stationKey}`); return { url: url.hls, isHls: true }; }
-                console.log(`🔗 Using MP3 fallback for ${stationKey}`); return { url: url.mp3, isHls: false };
-            }
-            return { url: typeof url === 'string' ? url : '', isHls: false };
-        }
-        function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
-        function updateProgress(elapsed, duration) { if (!duration || duration <= 0) return void progressContainer.classList.remove('active'); progressContainer.classList.add('active'); const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100)); progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration); }
-        function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if (!isPlaying || !trackData.duration) return; const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000; elapsed < trackData.duration && updateProgress(elapsed, trackData.duration); }, 500); }
-        function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
-        function updateStatus(online, isHls = false) { statusBadge.classList.remove('online', 'error', 'hls'); if (online) { if (isHls) statusBadge.classList.add('hls'), statusBadge.innerHTML = '<span>HLS 🔗</span>'; else statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>'; } else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
+        function getStreamUrl(key) { const u = STREAM_URLS[key]; return (u && typeof u === 'object') ? (isHlsSupported() ? {url:u.hls, isHls:true} : {url:u.mp3, isHls:false}) : {url: typeof u === 'string' ? u : '', isHls:false}; }
+        function formatTime(s) { return (!s || s<0) ? '0:00' : `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
+        function updateProgress(el, dur) { if(!dur||dur<=0) return progressContainer.classList.remove('active'); progressContainer.classList.add('active'); progressFill.style.width = `${Math.min(100,(el/dur)*100)}%`; progressCurrent.textContent = formatTime(el); progressDuration.textContent = formatTime(dur); }
+        function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if(!isPlaying||!trackData.duration) return; const el = trackData.elapsed + (Date.now()-trackData.lastUpdate)/1000; el<trackData.duration && updateProgress(el, trackData.duration); }, 500); }
+        function stopProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = null; progressContainer.classList.remove('active'); }
+        function updateStatus(online, isHls=false) { statusBadge.classList.remove('online','error','hls'); if(online) { statusBadge.classList.add(isHls?'hls':'online'); statusBadge.innerHTML = isHls ? '<span>HLS 🔗</span>' : '<span>В эфире</span>'; } else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
-        function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
-        function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
-        function toggleStations() { stationsOpen ? closeStations() : openStations(); }
-        function renderStationsList() { if (!stationsListEl) return; const keys = Object.keys(stations); if (keys.length === 0) { stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>'; return; } stationsListEl.innerHTML = ''; keys.forEach((key) => { const station = stations[key]; const btn = document.createElement('button'); const isHlsStation = STREAM_URLS[key] && typeof STREAM_URLS[key] === 'object'; btn.className = `station-item${key === currentStationKey ? ' active' : ''}`; btn.innerHTML = `<span class="station-dot"></span><span>${station.name}${isHlsStation ? ' 🔗' : ''}</span>`; btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); }); stationsListEl.appendChild(btn); }); }
-        function initStationsStatic() { stations = {}; STATION_IDS.forEach((id) => { const url = STREAM_URLS[id]; stations[id] = { name: STATION_NAMES[id] || id, stream: typeof url === 'string' ? url : (url.mp3 || url.hls), api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG }; }); renderStationsList(); currentStationKey = STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG); }
-        async function loadStationsBackground() { const promises = STATION_IDS.map(async (stationId) => { try { const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 3000); const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal }); clearTimeout(timeoutId); if (response.ok) { const data = await response.json(); let artUrl = DEFAULT_COVER_SVG; if (data.now_playing?.song?.art?.trim()) { artUrl = data.now_playing.song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; } else if (data.station?.front_art?.trim()) { artUrl = data.station.front_art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; } if (stations[stationId]) { stations[stationId].name = data.station?.name || stations[stationId].name; stations[stationId].art = artUrl; } if (stationId === currentStationKey) setCoverArt(artUrl); renderStationsList(); } } catch (e) {} }); await Promise.all(promises); }
-        function switchStation(key, autoPlay = true) { const station = stations[key]; if (!station) return; playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList(); if (autoPlay) startPlayback(station); }
-        function setCoverArt(artUrl) { if (!coverArt) return; if (artUrl?.trim()) { const img = new Image(); img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; }; img.src = artUrl; } else { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; } }
-        function destroyHls() { if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; console.log('🧹 HLS instance destroyed'); } }
+        function openStations() { stationsOpen=true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
+        function closeStations() { stationsOpen=false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
+        function renderStationsList() { if(!stationsListEl) return; stationsListEl.innerHTML = ''; Object.keys(stations).forEach(k => { const b = document.createElement('button'); b.className = `station-item${k===currentStationKey?' active':''}`; b.innerHTML = `<span class="station-dot"></span><span>${stations[k].name}${STREAM_URLS[k] && typeof STREAM_URLS[k]==='object'?' 🔗':''}</span>`; b.onclick = () => { switchStation(k); closeStations(); }; stationsListEl.appendChild(b); }); }
+        function initStationsStatic() { stations={}; STATION_IDS.forEach(id => { const u=STREAM_URLS[id]; stations[id]={name:STATION_NAMES[id]||id, stream: typeof u==='string'?u:(u.mp3||u.hls), api:`${BASE_URL}/api/nowplaying/${id}`, art:DEFAULT_COVER_SVG}; }); renderStationsList(); currentStationKey=STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG); }
+        async function loadStationsBackground() { await Promise.all(STATION_IDS.map(async id => { try { const c=new AbortController(), t=setTimeout(()=>c.abort(),3000); const r=await fetch(`${BASE_URL}/api/nowplaying/${id}`,{signal:c.signal}); clearTimeout(t); if(r.ok) { const d=await r.json(); let a=DEFAULT_COVER_SVG; if(d.now_playing?.song?.art) a = d.now_playing.song.art.startsWith('http')?d.now_playing.song.art:BASE_URL+d.now_playing.song.art; if(stations[id]) { stations[id].name=d.station?.name||stations[id].name; stations[id].art=a; } if(id===currentStationKey) setCoverArt(a); renderStationsList(); }} catch(e){}})); }
+        function switchStation(key) { if(!stations[key]) return; currentStationKey=key; stopPlayback(); setCoverArt(stations[key].art); renderStationsList(); startPlayback(stations[key]); }
+        function setCoverArt(url) { if(!coverArt) return; const img=new Image(); img.onload=()=>{coverArt.style.backgroundImage=`url('${url}')`;coverArt.querySelector('.cover-placeholder').style.display='none';}; img.onerror=()=>{coverArt.style.backgroundImage=`url('${DEFAULT_COVER_SVG}')`;coverArt.querySelector('.cover-placeholder').style.display='none';}; img.src=url||DEFAULT_COVER_SVG; }
+        function destroyHls() { if(hlsInstance){hlsInstance.destroy();hlsInstance=null;} }
 
-        // 🔥 Ключевая функция: инициализация визуализатора ТОЛЬКО когда аудио готово
-        function initVisualizerForCurrentAudio() {
-            // Ждём когда аудио будет в состоянии canplay или playing
-            if (audio.readyState >= 1) { // HAVE_METADATA или выше
-                if (!_cViz.audioCtx) {
-                    _cViz.init(audio);
-                    _cViz.start();
-                }
+        // 🔥 КРИТИЧЕСКИ ВАЖНО: Инициализация визуализатора ПОСЛЕ начала воспроизведения
+        function initVizSafely() {
+            if (_cViz.audioCtx) return;
+            _cViz.init(audio);
+            if (_cViz.audioCtx.state === 'suspended') {
+                _cViz.audioCtx.resume().then(() => _cViz.start()).catch(console.error);
             } else {
-                // Подписываемся на событие canplay для инициализации
-                const onCanPlay = () => {
-                    audio.removeEventListener('canplay', onCanPlay);
-                    audio.removeEventListener('playing', onCanPlay);
-                    if (!_cViz.audioCtx) {
-                        _cViz.init(audio);
-                        _cViz.start();
-                    }
-                };
-                audio.addEventListener('canplay', onCanPlay, { once: true });
-                audio.addEventListener('playing', onCanPlay, { once: true });
+                _cViz.start();
             }
         }
 
         function startPlayback(station) {
-            const streamInfo = getStreamUrl(currentStationKey);
-            console.log(`🎵 Playing: ${streamInfo.url} ${streamInfo.isHls ? '(HLS)' : '(MP3)'}`);
-            playbackStarted = false;
-            destroyHls();
-            _cViz.stop(); // 🔥 Останавливаем визуализатор перед сменой источника
+            const info = getStreamUrl(currentStationKey);
+            console.log(`🎵 ${info.isHls?'HLS':'MP3'}: ${info.url}`);
+            playbackStarted = false; destroyHls(); _cViz.stop();
             
-            if (streamInfo.isHls && !isSafari() && typeof Hls !== 'undefined' && Hls.isSupported()) {
-                console.log('🔧 Initializing hls.js');
-                hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 30 });
-                hlsInstance.loadSource(streamInfo.url);
-                hlsInstance.attachMedia(audio);
-                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                    console.log('✅ HLS manifest parsed');
-                    attemptPlay(streamInfo.isHls);
-                });
-                hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        console.error('❌ HLS fatal error:', data.type);
-                        const fallback = STREAM_URLS[currentStationKey];
-                        if (fallback && typeof fallback === 'object' && fallback.mp3) {
-                            console.log('🔄 Falling back to MP3');
-                            destroyHls();
-                            audio.src = `${fallback.mp3}?t=${Date.now()}`;
-                            audio.load();
-                            attemptPlay(false);
-                        } else { updateStatus(false); showError('Ошибка потока'); }
-                    }
-                });
+            if (info.isHls && !isSafari() && typeof Hls !== 'undefined' && Hls.isSupported()) {
+                hlsInstance = new Hls({enableWorker:true, lowLatencyMode:true, backBufferLength:30});
+                hlsInstance.loadSource(info.url); hlsInstance.attachMedia(audio);
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => attemptPlay(info.isHls));
+                hlsInstance.on(Hls.Events.ERROR, (_, d) => { if(d.fatal) { destroyHls(); audio.src=`${STREAM_URLS[currentStationKey].mp3}?t=${Date.now()}`; audio.load(); attemptPlay(false); }});
             } else {
-                audio.src = `${streamInfo.url}?t=${Date.now()}`;
-                audio.load();
-                setTimeout(() => attemptPlay(streamInfo.isHls), 150);
+                audio.src = `${info.url}?t=${Date.now()}`; audio.load();
+                setTimeout(() => attemptPlay(info.isHls), 150);
             }
         }
 
         function attemptPlay(isHls) {
             audio.play().then(() => {
-                console.log('✅ Playback started');
-                isPlaying = true; playbackStarted = true;
-                updatePlayButton(); updateStatus(true, isHls);
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                
-                // 🔥 Инициализируем визуализатор ПОСЛЕ успешного start playback
-                initVisualizerForCurrentAudio();
-                
-                if (currentStationKey && stations[currentStationKey]) {
-                    fetchMetadata(stations[currentStationKey].api);
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(stations[currentStationKey].api), 10000);
-                }
+                isPlaying = true; playbackStarted = true; updatePlayButton(); updateStatus(true, isHls);
+                // 🔥 Запускаем визуализатор ТОЛЬКО после реального воспроизведения
+                initVizSafely();
+                if(currentStationKey) fetchMetadata(stations[currentStationKey].api);
+                metadataInterval && clearInterval(metadataInterval); metadataInterval = setInterval(() => fetchMetadata(stations[currentStationKey].api), 10000);
             }).catch(err => {
-                console.error('❌ Playback error:', err);
-                updateStatus(false);
-                if (err.name === 'NotAllowedError') { showError('Нажмите Play ещё раз'); }
-                else if (err.name === 'TypeError' && isHls) {
-                    const fallback = STREAM_URLS[currentStationKey];
-                    if (fallback && typeof fallback === 'object' && fallback.mp3) {
-                        console.log('🔄 HLS failed, trying MP3');
-                        destroyHls();
-                        audio.src = `${fallback.mp3}?t=${Date.now()}`;
-                        audio.load();
-                        audio.play().then(() => {
-                            isPlaying = true; playbackStarted = true;
-                            updatePlayButton(); updateStatus(true, false);
-                            initVisualizerForCurrentAudio();
-                        }).catch(() => showError('Не удалось воспроизвести'));
-                    }
-                }
+                console.error('❌ Play failed:', err); updateStatus(false);
+                if(err.name==='NotAllowedError') showError('Нажмите Play ещё раз');
+                else if(isHls && STREAM_URLS[currentStationKey]?.mp3) { destroyHls(); audio.src=`${STREAM_URLS[currentStationKey].mp3}?t=${Date.now()}`; audio.load(); audio.play().then(()=>{isPlaying=true;playbackStarted=true;updatePlayButton();updateStatus(true,false);initVizSafely();}).catch(()=>showError('Ошибка потока')); }
             });
         }
 
         function stopPlayback() {
-            audio.pause();
-            destroyHls();
-            _cViz.stop(); // 🔥 Останавливаем визуализатор
-            audio.src = '';
-            isPlaying = false; playbackStarted = false;
-            updatePlayButton(); stopProgressAnimation(); updateStatus(false);
-            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
-            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
+            audio.pause(); destroyHls(); _cViz.stop(); audio.src=''; isPlaying=false; playbackStarted=false; updatePlayButton(); stopProgressAnimation(); updateStatus(false);
+            metadataInterval && clearInterval(metadataInterval); trackData={duration:0,elapsed:0,lastUpdate:0};
         }
-
-        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
-        function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
-        async function fetchMetadata(apiUrl) { if (!isPlaying) return; try { const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' }); if (!response.ok) return; const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {}; if (song) { trackTitleEl.textContent = song.title || 'Unknown Track'; trackArtistEl.textContent = song.artist || 'Unknown Artist'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); } } if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); } } catch (e) {} }
-        function showError(msg) { statusBadge.classList.remove('online', 'error', 'hls'); statusBadge.classList.add('error'); statusBadge.innerHTML = `<span>${msg}</span>`; setTimeout(() => { if (!isPlaying) statusBadge.innerHTML = '<span>Оффлайн</span>'; else { statusBadge.classList.remove('error'); statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; } }, 4000); }
+        function togglePlay() { if(currentStationKey && stations[currentStationKey]) isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]); }
+        function updatePlayButton() { playIcon.style.display=isPlaying?'none':'block'; pauseIcon.style.display=isPlaying?'block':'none'; coverArt.classList.toggle('playing', isPlaying); }
+        async function fetchMetadata(api) { if(!isPlaying) return; try { const r=await fetch(`${api}?r=${Math.random()}`,{cache:'no-store'}); if(!r.ok) return; const d=await r.json(), s=d?.now_playing?.song, {duration, elapsed}=d?.now_playing||{}; if(s){trackTitleEl.textContent=s.title||'—'; trackArtistEl.textContent=s.artist||'—'; trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder'); if(s.art){let u=s.art; if(!u.startsWith('http'))u=BASE_URL+u; setCoverArt(u);} } if(duration&&elapsed!==undefined){trackData={duration,elapsed,lastUpdate:Date.now()}; updateProgress(elapsed,duration); startProgressAnimation();} } catch(e){} }
+        function showError(m) { statusBadge.classList.remove('online','error','hls'); statusBadge.classList.add('error'); statusBadge.innerHTML=`<span>${m}</span>`; setTimeout(()=>{if(!isPlaying)statusBadge.innerHTML='<span>Оффлайн</span>';else{statusBadge.classList.remove('error');statusBadge.classList.add('online');statusBadge.innerHTML='<span>В эфире</span>';}},4000); }
 
         function setupEventListeners() {
-            playBtn.addEventListener('click', togglePlay);
-            prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
-            nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
-            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
-            stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
-            let touchStartX = 0, touchStartY = 0, isSwiping = false;
-            stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
-            stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
-            let globalStartX = 0, globalStartY = 0;
-            document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
-            document.addEventListener('touchend', (e) => { if (stationsOpen) return; const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY; Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click()); }, { passive: true });
-            audio.addEventListener('error', (e) => { const err = audio.error; console.error('🔊 Audio error:', err?.message || 'unknown', 'code:', err?.code); updateStatus(false); });
-            audio.addEventListener('playing', () => { playbackStarted = true; const streamInfo = getStreamUrl(currentStationKey); updateStatus(true, streamInfo.isHls); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
-            audio.addEventListener('stalled', () => console.log('⏳ Stream stalled'));
-            audio.addEventListener('waiting', () => console.log('⏳ Buffering...'));
+            playBtn.onclick=togglePlay;
+            prevBtn.onclick=()=>{const k=Object.keys(stations);if(k.length)return;const i=k.indexOf(currentStationKey);switchStation(k[i<=0?k.length-1:i-1]);};
+            nextBtn.onclick=()=>{const k=Object.keys(stations);if(k.length)return;const i=k.indexOf(currentStationKey);switchStation(k[i>=k.length-1?0:i+1]);};
+            burgerBtn.onclick=(e)=>{e.stopPropagation();stationsOpen?closeStations():openStations();};
+            stationsOverlay.onclick=(e)=>{if(e.target===stationsOverlay)closeStations();};
+            audio.addEventListener('playing', ()=>{playbackStarted=true;const i=getStreamUrl(currentStationKey);updateStatus(true,i.isHls);});
+            audio.addEventListener('error', ()=>updateStatus(false));
+            window.addEventListener('resize', ()=>{if(_cViz.ctx){const c=document.getElementById('viz-canvas'),d=window.devicePixelRatio||1,r=c.getBoundingClientRect();c.width=r.width*d;c.height=r.height*d;}});
         }
 
-        try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); } catch (e) { console.error("Init Error:", e); }
-        if (window.Telegram && window.Telegram.WebApp) { try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand && tg.expand(); if (tg.themeParams) { if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color); if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color); } } catch (e) {} }
-        window.addEventListener('resize', () => { if (_cViz.ctx) { const c = document.getElementById('viz-canvas'); const dpr = window.devicePixelRatio || 1; const rect = c.getBoundingClientRect(); c.width = rect.width * dpr; c.height = rect.height * dpr; } });
-        window.addEventListener('beforeunload', () => { stopPlayback(); _cViz.cleanup(); });
-        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+        try { initPlaceholders(); setupEventListeners(); initStationsStatic(); loadStationsBackground(); } catch(e){console.error(e);}
+        if(window.Telegram?.WebApp){try{const tg=window.Telegram.WebApp;tg.ready();tg.expand?.();}catch(e){}}
+        window.addEventListener('beforeunload', ()=>stopPlayback());
     </script>
 </body>
 </html>
 
-<div class="viz-container" id="viz-container">
-    <canvas id="viz-canvas"></canvas>
-</div>
-
-
-
-              <script>
-                              function initVisualizerForCurrentAudio() {
-    if (audio.readyState >= 1) { // HAVE_METADATA или выше
-        if (!_cViz.audioCtx) {
-            _cViz.init(audio);
-            _cViz.start();
-        }
-    } else {
-        const onCanPlay = () => {
-            audio.removeEventListener('canplay', onCanPlay);
-            audio.removeEventListener('playing', onCanPlay);
-            if (!_cViz.audioCtx) {
-                _cViz.init(audio);
-                _cViz.start();
-            }
-        };
-        audio.addEventListener('canplay', onCanPlay, { once: true });
-        audio.addEventListener('playing', onCanPlay, { once: true });
-    }
-}
-
-audio.play().then(() => {
-    // ...
-    // 🔥 Визуализатор запускаем ПОСЛЕ успешного play()
-    initVisualizerForCurrentAudio();
-});
-
-function stopPlayback() {
-    // ...
-    _cViz.stop(); // 🔥 Останавливаем визуализатор
-    // ...
-}
-
-window.addEventListener('resize', () => {
-    if (_cViz.ctx) {
-        const c = document.getElementById('viz-canvas');
-        const dpr = window.devicePixelRatio || 1;
-        const rect = c.getBoundingClientRect();
-        c.width = rect.width * dpr;
-        c.height = rect.height * dpr;
-    }
-});
-
-
-              </script>
-                        </body>
-                        </html>
-                    
