@@ -1,19 +1,4 @@
-
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  background-color: white; /* Ensure the iframe has a white background */
-                }
-
-                
-              </style>
-                        </head>
-                        <body>
-                            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -29,6 +14,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+    <!-- Оставляем hls.js на всякий случай, но для визуализатора на iOS лучше MP3 -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
     <style>
@@ -171,6 +157,7 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
+                <!-- Визуализатор теперь скрыт, пока не заиграет музыка -->
                 <div class="viz-container" id="viz-container"><canvas id="viz-canvas"></canvas></div>
             </div>
             <div class="track-info">
@@ -198,7 +185,7 @@
         </div>
     </div>
 
-    <!-- crossorigin="anonymous" критичен для визуализатора -->
+    <!-- crossorigin критичен для визуализатора -->
     <audio id="audio-player" preload="auto" playsinline crossorigin="anonymous"></audio>
     
     <script>
@@ -212,8 +199,12 @@
             nodes: [],
             silentFrames: 0,
 
-            init(audioElement) {
-                if (this.audioCtx) return true;
+            // 1. Подготовка контекста (вызывается при клике)
+            ensureAudioContext() {
+                if (this.audioCtx) {
+                    if (this.audioCtx.state === 'suspended') return this.audioCtx.resume();
+                    return Promise.resolve();
+                }
                 try {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
                     this.audioCtx = new AudioContext();
@@ -221,12 +212,38 @@
                     this.analyser.fftSize = this.CONFIG.FFT_SIZE;
                     this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
                     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-                    this.srcNode = this.audioCtx.createMediaElementSource(audioElement);
-                    this.srcNode.connect(this.analyser);
-                    this.analyser.connect(this.audioCtx.destination);
-                    console.log('✅ Visualizer initialized');
-                    return true;
-                } catch (e) { console.error('❌ Visualizer init failed:', e); return false; }
+                    console.log('🎛️ AudioContext created');
+                    return Promise.resolve();
+                } catch (e) {
+                    console.error('❌ AudioContext error:', e);
+                    return Promise.reject(e);
+                }
+            },
+
+            // 2. Подключение и запуск (вызывается ПОСЛЕ начала игры)
+            connectAndStart(audioElement) {
+                if (!this.srcNode) {
+                    try {
+                        this.srcNode = this.audioCtx.createMediaElementSource(audioElement);
+                        this.srcNode.connect(this.analyser);
+                        this.analyser.connect(this.audioCtx.destination);
+                        console.log('🔗 Visualizer connected to audio element');
+                    } catch (e) {
+                        console.error('❌ Connection error:', e);
+                        return;
+                    }
+                }
+                this.start();
+            },
+
+            start() {
+                document.getElementById('viz-container').classList.add('active');
+                if (!this.running) { 
+                    this.running = true; 
+                    this.silentFrames = 0; 
+                    this.draw(); 
+                    console.log('✨ Visualizer animation started');
+                }
             },
 
             draw() {
@@ -245,12 +262,12 @@
                 
                 this.analyser.getByteFrequencyData(this.freqData);
                 
-                // Диагностика: если везде нули — значит браузер блокирует доступ (CORS/HLS)
+                // Проверка на тишину (если браузер блокирует доступ к данным)
                 let maxVal = 0;
                 for(let i=0; i<this.freqData.length; i++) if(this.freqData[i] > maxVal) maxVal = this.freqData[i];
                 if (maxVal === 0) {
                     this.silentFrames++;
-                    if (this.silentFrames === 60) console.warn('⚠️ Visualizer sees silence (0). Check if stream has CORS headers.');
+                    if (this.silentFrames === 60) console.warn('⚠️ Visualizer sees silence. Check CORS or switch to MP3.');
                 } else this.silentFrames = 0;
 
                 const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
@@ -287,10 +304,6 @@
                 this.animId = requestAnimationFrame(() => this.draw());
             },
 
-            start() {
-                document.getElementById('viz-container').classList.add('active');
-                if (!this.running) { this.running = true; cancelAnimationFrame(this.animId); this.silentFrames = 0; this.draw(); }
-            },
             stop() {
                 document.getElementById('viz-container').classList.remove('active');
                 this.running = false; cancelAnimationFrame(this.animId);
@@ -301,8 +314,7 @@
         // ===============================
         // 📻 RADIO APP
         // ===============================
-        // 🔥 ВАЖНО: Для визуализатора на iOS используем MP3, а не HLS!
-        // HLS на iPhone блокирует доступ к данным звука (Web Audio API).
+        // 🔥 Dark Room теперь на MP3 для работы визуализатора на iOS
         const STREAM_URLS = {
             liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',
             drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',
@@ -310,7 +322,6 @@
             old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',
             progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',
             psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',
-            // 🔥 Dark Room теперь на MP3, чтобы работал визуализатор
             dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'
         };
         const BASE_URL = 'https://majesticradio.duckdns.org';
@@ -330,11 +341,9 @@
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
-        let hlsInstance = null;
 
         const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        function isSafari() { return /^((?!chrome|android).)*safari/i.test(navigator.userAgent); }
         function formatTime(s) { return (!s || s<0) ? '0:00' : `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
         function updateProgress(el, dur) { if(!dur||dur<=0) return progressContainer.classList.remove('active'); progressContainer.classList.add('active'); progressFill.style.width = `${Math.min(100,(el/dur)*100)}%`; progressCurrent.textContent = formatTime(el); progressDuration.textContent = formatTime(dur); }
         function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if(!isPlaying||!trackData.duration) return; const el = trackData.elapsed + (Date.now()-trackData.lastUpdate)/1000; el<trackData.duration && updateProgress(el, trackData.duration); }, 500); }
@@ -348,42 +357,83 @@
         async function loadStationsBackground() { await Promise.all(STATION_IDS.map(async id => { try { const c=new AbortController(), t=setTimeout(()=>c.abort(),3000); const r=await fetch(`${BASE_URL}/api/nowplaying/${id}`,{signal:c.signal}); clearTimeout(t); if(r.ok) { const d=await r.json(); let a=DEFAULT_COVER_SVG; if(d.now_playing?.song?.art) a = d.now_playing.song.art.startsWith('http')?d.now_playing.song.art:BASE_URL+d.now_playing.song.art; if(stations[id]) { stations[id].name=d.station?.name||stations[id].name; stations[id].art=a; } if(id===currentStationKey) setCoverArt(a); renderStationsList(); }} catch(e){}})); }
         function switchStation(key) { if(!stations[key]) return; currentStationKey=key; stopPlayback(); setCoverArt(stations[key].art); renderStationsList(); startPlayback(stations[key]); }
         function setCoverArt(url) { if(!coverArt) return; const img=new Image(); img.onload=()=>{coverArt.style.backgroundImage=`url('${url}')`;coverArt.querySelector('.cover-placeholder').style.display='none';}; img.onerror=()=>{coverArt.style.backgroundImage=`url('${DEFAULT_COVER_SVG}')`;coverArt.querySelector('.cover-placeholder').style.display='none';}; img.src=url||DEFAULT_COVER_SVG; }
-        function destroyHls() { if(hlsInstance){hlsInstance.destroy();hlsInstance=null;} }
-
-        function initVizSafely() {
-            if (_cViz.audioCtx) return;
-            if (_cViz.init(audio)) {
-                if (_cViz.audioCtx.state === 'suspended') {
-                    _cViz.audioCtx.resume().then(() => _cViz.start()).catch(console.error);
-                } else {
-                    _cViz.start();
-                }
-            }
-        }
-
-        function startPlayback(station) {
-            console.log(`🎵 MP3: ${station.stream}`);
-            playbackStarted = false; destroyHls(); _cViz.stop();
-            audio.src = `${station.stream}?t=${Date.now()}`; audio.load();
-            setTimeout(() => attemptPlay(false), 150);
-        }
-
-        function attemptPlay(isHls) {
-            audio.play().then(() => {
-                isPlaying = true; playbackStarted = true; updatePlayButton(); updateStatus(true, isHls);
-                // Запуск визуализатора ПОСЛЕ начала проигрывания
-                initVizSafely();
-                if(currentStationKey) fetchMetadata(stations[currentStationKey].api);
-                metadataInterval && clearInterval(metadataInterval); metadataInterval = setInterval(() => fetchMetadata(stations[currentStationKey].api), 10000);
-            }).catch(err => {
-                console.error('❌ Play failed:', err); updateStatus(false);
-                if(err.name==='NotAllowedError') showError('Нажмите Play ещё раз');
+        
+        // Хелпер для ожидания реального воспроизведения
+        function waitForPlayback() {
+            return new Promise((resolve, reject) => {
+                // Если уже играет - сразу успех
+                if (!audio.paused && audio.currentTime > 0) return resolve();
+                
+                const onPlaying = () => { audio.removeEventListener('playing', onPlaying); audio.removeEventListener('error', onError); resolve(); };
+                const onError = (e) => { audio.removeEventListener('playing', onPlaying); audio.removeEventListener('error', onError); reject(audio.error || e); };
+                
+                audio.addEventListener('playing', onPlaying, { once: true });
+                audio.addEventListener('error', onError, { once: true });
             });
         }
 
+        // 🔥 ГЛАВНАЯ ФУНКЦИЯ: Строгая последовательность
+        async function startPlayback(station) {
+            console.log(`🎬 Start sequence for: ${station.name}`);
+            playbackStarted = false; 
+            _cViz.stop(); // Скрываем визуализатор при смене
+            
+            // 1. Сначала готовим AudioContext (требование iOS: в ответ на жест)
+            try {
+                await _cViz.ensureAudioContext();
+            } catch (e) {
+                console.error('Failed to init AudioContext', e);
+                return;
+            }
+
+            // 2. Запускаем поток
+            audio.src = `${station.stream}?t=${Date.now()}`;
+            audio.load();
+            console.log('🎵 Attempting playback...');
+            
+            try {
+                // Запускаем воспроизведение
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    await playPromise;
+                    // Ждем подтверждения от браузера, что звук действительно пошел
+                    await waitForPlayback();
+                }
+                
+                // 3. ТОЛЬКО ТЕПЕРЬ включаем визуализатор
+                console.log('✅ Playback Confirmed! Activating Visualizer...');
+                _cViz.connectAndStart(audio);
+                
+                isPlaying = true;
+                playbackStarted = true;
+                updatePlayButton();
+                updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                
+                // Метаданные
+                if(currentStationKey) fetchMetadata(stations[currentStationKey].api);
+                metadataInterval && clearInterval(metadataInterval); 
+                metadataInterval = setInterval(() => fetchMetadata(stations[currentStationKey].api), 10000);
+                
+            } catch (err) {
+                console.error('❌ Playback failed:', err);
+                updateStatus(false);
+                if(err.name === 'NotAllowedError') showError('Нажмите Play ещё раз');
+                else showError('Ошибка потока');
+            }
+        }
+
         function stopPlayback() {
-            audio.pause(); destroyHls(); _cViz.stop(); audio.src=''; isPlaying=false; playbackStarted=false; updatePlayButton(); stopProgressAnimation(); updateStatus(false);
-            metadataInterval && clearInterval(metadataInterval); trackData={duration:0,elapsed:0,lastUpdate:0};
+            audio.pause(); 
+            _cViz.stop(); 
+            audio.src=''; 
+            isPlaying=false; 
+            playbackStarted=false; 
+            updatePlayButton(); 
+            stopProgressAnimation(); 
+            updateStatus(false);
+            metadataInterval && clearInterval(metadataInterval); 
+            trackData={duration:0,elapsed:0,lastUpdate:0};
         }
         function togglePlay() { if(currentStationKey && stations[currentStationKey]) isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]); }
         function updatePlayButton() { playIcon.style.display=isPlaying?'none':'block'; pauseIcon.style.display=isPlaying?'block':'none'; coverArt.classList.toggle('playing', isPlaying); }
@@ -396,8 +446,6 @@
             nextBtn.onclick=()=>{const k=Object.keys(stations);if(k.length)return;const i=k.indexOf(currentStationKey);switchStation(k[i>=k.length-1?0:i+1]);};
             burgerBtn.onclick=(e)=>{e.stopPropagation();stationsOpen?closeStations():openStations();};
             stationsOverlay.onclick=(e)=>{if(e.target===stationsOverlay)closeStations();};
-            audio.addEventListener('playing', ()=>{playbackStarted=true; updateStatus(true, false);});
-            audio.addEventListener('error', ()=>updateStatus(false));
             window.addEventListener('resize', ()=>{if(_cViz.ctx){const c=document.getElementById('viz-canvas'),d=window.devicePixelRatio||1,r=c.getBoundingClientRect();c.width=r.width*d;c.height=r.height*d;}});
         }
 
@@ -408,13 +456,3 @@
 </body>
 </html>
 
-
-
-              <script>
-                              dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'
-
-
-              </script>
-                        </body>
-                        </html>
-                    
