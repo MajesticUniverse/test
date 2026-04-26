@@ -200,8 +200,8 @@
         </div>
     </div>
 
-    <!-- 🔥 crossorigin="anonymous" КРИТИЧЕН для визуализатора -->
-    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    <!-- Для мобильных браузеров (iOS Safari/Яндекс) не форсируем CORS на теге audio -->
+    <audio id="audio-player" preload="none" playsinline></audio>
     
     <script>
         // ===============================
@@ -554,6 +554,9 @@
             playbackStarted = false; 
             // 🔥 Останавливаем визуализатор перед сменой источника
             ConstellationViz.stop();
+            // iOS Safari / Яндекс Mobile: не форсируем CORS для самого стрима,
+            // иначе при прокси/нестандартных заголовках воспроизведение может блокироваться.
+            audio.removeAttribute('crossorigin');
             audio.src = `${station.stream}?t=${Date.now()}`;
             setTimeout(async () => {
                 try {
