@@ -1,4 +1,19 @@
-<!DOCTYPE html>
+
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body {
+                  background-color: white; /* Ensure the iframe has a white background */
+                }
+
+                
+              </style>
+                        </head>
+                        <body>
+                            <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -73,14 +88,10 @@
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
-        /* 🔥 CONSTELLATION VISUALIZER (Canvas-based) */
+        /* 🔥 CONSTELLATION VISUALIZER */
         .viz-container {
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            width: 100%; height: 50%;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.4s ease;
+            position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 50%;
+            pointer-events: none; opacity: 0; transition: opacity 0.4s ease;
             background: linear-gradient(to top, rgba(10,5,20,0.8) 0%, transparent 60%);
             border-bottom-left-radius: var(--border-radius);
             border-bottom-right-radius: var(--border-radius);
@@ -152,6 +163,8 @@
         .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
         .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        .status-badge.loading { background: rgba(167, 139, 250, 0.2); color: var(--accent-light); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
         @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
@@ -171,7 +184,6 @@
             </header>
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
-                <!-- 🔥 Constellation Visualizer Canvas -->
                 <div class="viz-container" id="viz-container"><canvas id="viz-canvas"></canvas></div>
             </div>
             <div class="track-info">
@@ -205,27 +217,14 @@
     
     <script>
         // ===============================
-        // 🎨 CONSTELLATION VISUALIZER — CORE CODE
+        // 🎨 CONSTELLATION VISUALIZER
         // ===============================
         const ConstellationViz = {
-            // Глобальные переменные
             audioCtx: null, analyser: null, sourceNode: null, freqData: null,
             vizAnimId: null, isRunning: false,
-            
-            // Настройки
-            CONFIG: {
-                NUM_NODES: 48,
-                CONN_DISTANCE: 45,
-                FFT_SIZE: 2048,
-                SMOOTHING: 0.75,
-                MAX_FREQ: 10000,
-                NODE_HEIGHT: 0.75,
-                BASE_Y: 0.85
-            },
-            
+            CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 },
             nodes: [],
             
-            // Инициализация Web Audio API
             init(audioElement) {
                 if (this.audioCtx) return true;
                 try {
@@ -235,138 +234,73 @@
                     this.analyser.fftSize = this.CONFIG.FFT_SIZE;
                     this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
                     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-                    
-                    // 🔥 Подключаем audio-элемент к анализатору
                     this.sourceNode = this.audioCtx.createMediaElementSource(audioElement);
                     this.sourceNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
-                    
-                    // Инициализируем узлы
-                    this.nodes = [];
-                    for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
-                        this.nodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
-                    }
-                    
+                    this.nodes = Array.from({length: this.CONFIG.NUM_NODES}, () => ({x:0,y:0,energy:0,targetY:0}));
                     console.log('✅ ConstellationViz initialized');
                     return true;
-                } catch (e) {
-                    console.error('❌ ConstellationViz init failed:', e.message);
-                    return false;
-                }
+                } catch (e) { console.error('❌ ConstellationViz init failed:', e.message); return false; }
             },
             
-            // Основной цикл отрисовки
             draw() {
                 const canvas = document.getElementById('viz-canvas');
                 if (!canvas) return;
-                const ctx = this.ctx || canvas.getContext('2d');
-                this.ctx = ctx;
-                
-                // Поддержка HiDPI
+                const ctx = this.ctx || canvas.getContext('2d'); this.ctx = ctx;
                 const dpr = window.devicePixelRatio || 1;
                 const rect = canvas.getBoundingClientRect();
-                canvas.width = rect.width * dpr;
-                canvas.height = rect.height * dpr;
+                canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                
                 const w = rect.width, h = rect.height;
                 ctx.clearRect(0, 0, w, h);
-                
-                if (!this.analyser || !this.freqData) {
-                    this.vizAnimId = requestAnimationFrame(() => this.draw());
-                    return;
-                }
-                
-                // Получаем частотные данные
+                if (!this.analyser || !this.freqData) { this.vizAnimId = requestAnimationFrame(() => this.draw()); return; }
                 this.analyser.getByteFrequencyData(this.freqData);
                 const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
                 const maxFreqBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
-                
-                // Обновляем узлы
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const ratio = i / (this.CONFIG.NUM_NODES - 1);
                     const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
                     const val = this.freqData[bin] / 255;
-                    
                     this.nodes[i].x = ratio * w;
                     this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
                     this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
                     this.nodes[i].energy = val;
                 }
-                
-                // Отрисовка линий
                 ctx.lineWidth = 0.8;
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
-                        const dx = this.nodes[i].x - this.nodes[j].x;
-                        const dy = this.nodes[i].y - this.nodes[j].y;
-                        const distSq = dx * dx + dy * dy;
-                        
-                        if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) {
+                        const dx = this.nodes[i].x - this.nodes[j].x, dy = this.nodes[i].y - this.nodes[j].y;
+                        const distSq = dx*dx + dy*dy;
+                        if (distSq < this.CONFIG.CONN_DISTANCE ** 2) {
                             const dist = Math.sqrt(distSq);
-                            const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy);
-                            ctx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
-                            ctx.beginPath();
-                            ctx.moveTo(this.nodes[i].x, this.nodes[i].y);
-                            ctx.lineTo(this.nodes[j].x, this.nodes[j].y);
-                            ctx.stroke();
+                            ctx.strokeStyle = `rgba(180,160,255,${Math.max(0, (1-dist/this.CONFIG.CONN_DISTANCE)*0.35*(0.4+this.nodes[i].energy+this.nodes[j].energy))})`;
+                            ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke();
                         }
                     }
                 }
-                
-                // Отрисовка точек
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const n = this.nodes[i];
-                    const r = 1.2 + n.energy * 3.5;
-                    const alpha = 0.4 + n.energy * 0.6;
-                    
-                    ctx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
-                    ctx.shadowBlur = 6;
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                    
-                    ctx.beginPath();
-                    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
+                    ctx.shadowColor = `rgba(167,139,250,${n.energy*0.6})`; ctx.shadowBlur = 6;
+                    ctx.fillStyle = `rgba(255,255,255,${0.4+n.energy*0.6})`;
+                    ctx.beginPath(); ctx.arc(n.x, n.y, 1.2+n.energy*3.5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
                 }
-                
                 this.vizAnimId = requestAnimationFrame(() => this.draw());
             },
             
-            // Запуск визуализатора
             start() {
                 document.getElementById('viz-container').classList.add('active');
-                if (!this.isRunning) {
-                    this.isRunning = true;
-                    cancelAnimationFrame(this.vizAnimId);
-                    this.draw();
-                    console.log('▶ ConstellationViz started');
-                }
+                if (!this.isRunning) { this.isRunning = true; cancelAnimationFrame(this.vizAnimId); this.draw(); }
             },
-            
-            // Остановка визуализатора
             stop() {
                 document.getElementById('viz-container').classList.remove('active');
-                this.isRunning = false;
-                cancelAnimationFrame(this.vizAnimId);
-                if (this.ctx) {
-                    const canvas = document.getElementById('viz-canvas');
-                    const rect = canvas.getBoundingClientRect();
-                    this.ctx.clearRect(0, 0, rect.width, rect.height);
-                }
-                console.log('⏹ ConstellationViz stopped');
+                this.isRunning = false; cancelAnimationFrame(this.vizAnimId);
+                if (this.ctx) { const c = document.getElementById('viz-canvas'); const r = c.getBoundingClientRect(); this.ctx.clearRect(0,0,r.width,r.height); }
             },
-            
-            // Очистка ресурсов
             cleanup() {
                 this.stop();
                 if (this.sourceNode) { try { this.sourceNode.disconnect(); } catch(e) {} this.sourceNode = null; }
                 if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; }
-                if (this.audioCtx && this.audioCtx.state !== 'closed') {
-                    this.audioCtx.close().catch(() => {});
-                    this.audioCtx = null;
-                }
-                console.log('🧹 ConstellationViz cleanup done');
+                if (this.audioCtx && this.audioCtx.state !== 'closed') { this.audioCtx.close().catch(()=>{}); this.audioCtx = null; }
             }
         };
 
@@ -384,12 +318,8 @@
         };
         const BASE_URL = 'https://majesticradio.duckdns.org';
         const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];
-        const STATION_NAMES = {
-            liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill',
-            old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room'
-        };
+        const STATION_NAMES = { liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill', old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room' };
 
-        // --- ЭЛЕМЕНТЫ ---
         const audio = document.getElementById('audio-player');
         const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
@@ -400,129 +330,74 @@
         const progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
 
-        // --- СОСТОЯНИЕ ---
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
-
         const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        // --- ФУНКЦИИ ---
-        function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
-        
-        function updateProgress(elapsed, duration) {
-            if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
-            progressContainer.classList.add('active');
-            const percent = Math.min(100, Math.max(0, (elapsed / duration) * 100));
-            progressFill.style.width = `${percent}%`; progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
+        function formatTime(s) { return (!s||s<0)?'0:00':`${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
+        function updateProgress(el,dur) { if(!dur||dur<=0) return progressContainer.classList.remove('active'); progressContainer.classList.add('active'); progressFill.style.width=`${Math.min(100,(el/dur)*100)}%`; progressCurrent.textContent=formatTime(el); progressDuration.textContent=formatTime(dur); }
+        function startProgressAnimation() { progressInterval&&clearInterval(progressInterval); progressInterval=setInterval(()=>{ if(!isPlaying||!trackData.duration)return; const el=trackData.elapsed+(Date.now()-trackData.lastUpdate)/1000; el<trackData.duration&&updateProgress(el,trackData.duration); },500); }
+        function stopProgressAnimation() { progressInterval&&clearInterval(progressInterval); progressInterval=null; progressContainer.classList.remove('active'); }
+        function updateStatus(state, msg) {
+            statusBadge.classList.remove('online','error','loading');
+            if (state === 'online') { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; }
+            else if (state === 'loading') { statusBadge.classList.add('loading'); statusBadge.innerHTML = `<span>${msg||'Загрузка...'}</span>`; }
+            else { statusBadge.innerHTML = `<span>${msg||'Оффлайн'}</span>`; }
         }
-
-        function startProgressAnimation() {
-            progressInterval && clearInterval(progressInterval);
-            progressInterval = setInterval(() => {
-                if (!isPlaying || !trackData.duration) return;
-                const elapsed = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000;
-                elapsed >= trackData.duration || updateProgress(elapsed, trackData.duration);
-            }, 500);
-        }
-
-        function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
-        
-        function updateStatus(online) {
-            statusBadge.classList.remove('online', 'error');
-            if (online) statusBadge.classList.add('online'), statusBadge.innerHTML = '<span>В эфире</span>';
-            else statusBadge.classList.remove('online'), statusBadge.innerHTML = '<span>Оффлайн</span>';
-        }
-
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
-        
-        function openStations() { stationsOpen = true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
-        function closeStations() { stationsOpen = false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
-        function toggleStations() { stationsOpen ? closeStations() : openStations(); }
-
+        function openStations() { stationsOpen=true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
+        function closeStations() { stationsOpen=false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
+        function toggleStations() { stationsOpen?closeStations():openStations(); }
         function renderStationsList() {
-            if (!stationsListEl) return;
-            const keys = Object.keys(stations);
-            if (keys.length === 0) {
-                stationsListEl.innerHTML = '<div class="stations-empty">Нет доступных станций</div>';
-                return;
-            }
-            stationsListEl.innerHTML = '';
-            keys.forEach((key) => {
-                const station = stations[key];
-                const btn = document.createElement('button');
-                btn.className = `station-item${key === currentStationKey ? ' active' : ''}`;
-                btn.innerHTML = `<span class="station-dot"></span><span>${station.name}</span>`;
-                btn.addEventListener('click', (e) => { e.stopPropagation(); switchStation(key, true); closeStations(); });
-                stationsListEl.appendChild(btn);
+            if(!stationsListEl)return; stationsListEl.innerHTML='';
+            Object.keys(stations).forEach(k=>{
+                const b=document.createElement('button');
+                b.className=`station-item${k===currentStationKey?' active':''}`;
+                b.innerHTML=`<span class="station-dot"></span><span>${stations[k].name}</span>`;
+                b.onclick=()=>{switchStation(k,true);closeStations();};
+                stationsListEl.appendChild(b);
             });
         }
-
         function initStationsStatic() {
-            stations = {};
-            STATION_IDS.forEach((id) => {
-                stations[id] = { name: STATION_NAMES[id] || id, stream: STREAM_URLS[id], api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
-            });
-            renderStationsList();
-            currentStationKey = STATION_IDS[0];
-            setCoverArt(DEFAULT_COVER_SVG);
+            stations={};
+            STATION_IDS.forEach(id=>stations[id]={name:STATION_NAMES[id]||id,stream:STREAM_URLS[id],api:`${BASE_URL}/api/nowplaying/${id}`,art:DEFAULT_COVER_SVG});
+            renderStationsList(); currentStationKey=STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG);
         }
-
         async function loadStationsBackground() {
-            const promises = STATION_IDS.map(async (stationId) => {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000);
-                    const response = await fetch(`${BASE_URL}/api/nowplaying/${stationId}`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    if (response.ok) {
-                        const data = await response.json();
-                        let artUrl = DEFAULT_COVER_SVG;
-                        if (data.now_playing?.song?.art?.trim()) {
-                            artUrl = data.now_playing.song.art;
-                            if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
-                        } else if (data.station?.front_art?.trim()) {
-                            artUrl = data.station.front_art;
-                            if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
-                        }
-                        if (stations[stationId]) {
-                            stations[stationId].name = data.station?.name || stations[stationId].name;
-                            stations[stationId].art = artUrl;
-                        }
-                        if (stationId === currentStationKey) setCoverArt(artUrl);
-                        renderStationsList();
+            await Promise.all(STATION_IDS.map(async id=>{
+                try{
+                    const c=new AbortController(),t=setTimeout(()=>c.abort(),3000);
+                    const r=await fetch(`${BASE_URL}/api/nowplaying/${id}`,{signal:c.signal}); clearTimeout(t);
+                    if(r.ok){
+                        const d=await r.json(); let a=DEFAULT_COVER_SVG;
+                        if(d.now_playing?.song?.art){a=d.now_playing.song.art;if(!a.startsWith('http'))a=BASE_URL+a;}
+                        else if(d.station?.front_art){a=d.station.front_art;if(!a.startsWith('http'))a=BASE_URL+a;}
+                        if(stations[id]){stations[id].name=d.station?.name||stations[id].name;stations[id].art=a;}
+                        if(id===currentStationKey)setCoverArt(a); renderStationsList();
                     }
-                } catch (e) { /* Ошибки сети игнорируем */ }
-            });
-            await Promise.all(promises);
+                }catch(e){}
+            }));
+        }
+        function switchStation(key,autoPlay=true) {
+            if(!stations[key])return;
+            playbackStarted=false; currentStationKey=key; stopPlayback(); setCoverArt(stations[key].art); renderStationsList();
+            if(autoPlay)startPlayback(stations[key]);
+        }
+        function setCoverArt(url) {
+            if(!coverArt)return;
+            const img=new Image();
+            img.onload=()=>{coverArt.style.backgroundImage=`url('${url}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};
+            img.onerror=()=>{coverArt.style.backgroundImage=`url('${DEFAULT_COVER_SVG}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};
+            img.src=url||DEFAULT_COVER_SVG;
         }
 
-        function switchStation(key, autoPlay = true) {
-            const station = stations[key]; if (!station) return;
-            playbackStarted = false; currentStationKey = key; stopPlayback(); setCoverArt(station.art); renderStationsList();
-            if (autoPlay) startPlayback(station);
-        }
-
-        function setCoverArt(artUrl) {
-            if (!coverArt) return;
-            if (artUrl?.trim()) {
-                const img = new Image();
-                img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.src = artUrl;
-            } else { 
-                coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; 
-                coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
-            }
-        }
-
-        // 🔥 ВИЗУАЛИЗАТОР: инициализация ТОЛЬКО после успешного play()
+        // 🔥 ВИЗУАЛИЗАТОР: инициализация ТОЛЬКО после события 'playing'
         function startVisualizer() {
-            // Ждём, пока аудио действительно начнёт играть
-            if (audio.readyState >= 1) { // HAVE_METADATA или выше
+            const onPlaying = () => {
+                audio.removeEventListener('playing', onPlaying);
                 if (!ConstellationViz.audioCtx) {
                     ConstellationViz.init(audio);
-                    // Для iOS: если AudioContext в состоянии suspended, resume()
                     if (ConstellationViz.audioCtx?.state === 'suspended') {
                         ConstellationViz.audioCtx.resume().then(() => ConstellationViz.start()).catch(console.error);
                     } else {
@@ -531,61 +406,59 @@
                 } else {
                     ConstellationViz.start();
                 }
-            } else {
-                // Подписываемся на событие playing для инициализации
-                const onPlaying = () => {
-                    audio.removeEventListener('playing', onPlaying);
-                    if (!ConstellationViz.audioCtx) {
-                        ConstellationViz.init(audio);
-                        if (ConstellationViz.audioCtx?.state === 'suspended') {
-                            ConstellationViz.audioCtx.resume().then(() => ConstellationViz.start()).catch(console.error);
-                        } else {
-                            ConstellationViz.start();
-                        }
-                    }
-                };
-                audio.addEventListener('playing', onPlaying, { once: true });
-            }
+            };
+            audio.addEventListener('playing', onPlaying, { once: true });
         }
         function stopVisualizer() { ConstellationViz.stop(); }
 
+        // 🔥 ГЛАВНАЯ ФУНКЦИЯ: БЕЗ setTimeout, прямой вызов play()
         function startPlayback(station) {
-            console.log(`🎵 Playing: ${station.stream}`); 
-            playbackStarted = false; 
-            // 🔥 Останавливаем визуализатор перед сменой источника
+            console.log(`🎵 Start playback: ${station.name}`);
+            playbackStarted = false;
             ConstellationViz.stop();
+            updateStatus('loading', 'Подключение...');
+            
+            // Устанавливаем src и сразу вызываем play() — БЕЗ setTimeout!
             audio.src = `${station.stream}?t=${Date.now()}`;
-            setTimeout(async () => {
-                try {
-                    await audio.play(); 
-                    console.log('✅ Playback started'); 
-                    isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); 
-                    // 🔥 Запускаем визуализатор ТОЛЬКО после успешного play()
-                    startVisualizer();
-                    updateStatus(true); 
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(station.api); 
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                } catch (err) { console.error('❌ Playback error:', err); updateStatus(false); }
-            }, 150);
+            audio.load();
+            
+            // 🔥 ПРЯМОЙ ВЫЗОВ play() в ответ на жест пользователя
+            audio.play().then(() => {
+                console.log('✅ Playback started');
+                isPlaying = true; playbackStarted = true;
+                updatePlayButton();
+                updateStatus('online');
+                startVisualizer(); // Визуализатор запустится после события 'playing'
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                fetchMetadata(station.api);
+                metadataInterval && clearInterval(metadataInterval);
+                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+            }).catch(err => {
+                console.error('❌ Playback failed:', err.name, err.message);
+                updateStatus('error', err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения');
+                isPlaying = false; playbackStarted = false;
+                updatePlayButton();
+                stopVisualizer();
+            });
         }
 
         function stopPlayback() {
-            audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
-            stopVisualizer(); stopProgressAnimation(); updateStatus(false);
-            metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
+            audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false;
+            updatePlayButton(); stopVisualizer(); stopProgressAnimation(); updateStatus('offline');
+            metadataInterval && clearInterval(metadataInterval);
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
 
-        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
+        function togglePlay() {
+            if (!currentStationKey || !stations[currentStationKey]) return;
+            isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]);
+        }
         
-        function updatePlayButton() { 
-            playIcon.style.display = isPlaying ? 'none' : 'block'; 
-            pauseIcon.style.display = isPlaying ? 'block' : 'none'; 
-            coverArt.classList.toggle('playing', isPlaying); 
+        function updatePlayButton() {
+            playIcon.style.display = isPlaying ? 'none' : 'block';
+            pauseIcon.style.display = isPlaying ? 'block' : 'none';
+            coverArt.classList.toggle('playing', isPlaying);
         }
 
         async function fetchMetadata(apiUrl) {
@@ -595,75 +468,73 @@
                 if (!response.ok) return;
                 const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
                 if (song) {
-                    trackTitleEl.textContent = song.title || 'Unknown Track'; 
+                    trackTitleEl.textContent = song.title || 'Unknown Track';
                     trackArtistEl.textContent = song.artist || 'Unknown Artist';
                     trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
+                    if (song.art?.trim()) { let artUrl = song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; setCoverArt(artUrl); }
                 }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) { /* silent */ }
+            } catch (e) {}
         }
 
         function setupEventListeners() {
             playBtn.addEventListener('click', togglePlay);
-            prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
-            nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
+            prevBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i<=0?k.length-1:i-1]); });
+            nextBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i>=k.length-1?0:i+1]); });
             burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
-            stationsOverlay.addEventListener('click', (e) => { e.target === stationsOverlay && closeStations(); });
+            stationsOverlay.addEventListener('click', (e) => { if (e.target === stationsOverlay) closeStations(); });
             
-            let touchStartX = 0, touchStartY = 0, isSwiping = false;
-            stationsOverlay.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; isSwiping = true; }, { passive: true });
-            stationsOverlay.addEventListener('touchend', (e) => { if (!isSwiping) return; isSwiping = false; const diffX = e.changedTouches[0].screenX - touchStartX; const diffY = e.changedTouches[0].screenY - touchStartY; diffY > 80 && Math.abs(diffX) < 0.5 * Math.abs(diffY) && closeStations(); }, { passive: true });
+            let touchStartX=0,touchStartY=0,isSwiping=false;
+            stationsOverlay.addEventListener('touchstart',(e)=>{touchStartX=e.changedTouches[0].screenX;touchStartY=e.changedTouches[0].screenY;isSwiping=true;},{passive:true});
+            stationsOverlay.addEventListener('touchend',(e)=>{if(!isSwiping)return;isSwiping=false;const dx=e.changedTouches[0].screenX-touchStartX,dy=e.changedTouches[0].screenY-touchStartY;if(dy>80&&Math.abs(dx)<0.5*Math.abs(dy))closeStations();},{passive:true});
             
-            let globalStartX = 0, globalStartY = 0;
-            document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
-            document.addEventListener('touchend', (e) => {
-                if (stationsOpen) return;
-                const diffX = globalStartX - e.changedTouches[0].screenX, diffY = e.changedTouches[0].screenY - globalStartY;
-                Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
-            }, { passive: true });
+            let globalStartX=0,globalStartY=0;
+            document.addEventListener('touchstart',(e)=>{globalStartX=e.changedTouches[0].screenX;globalStartY=e.changedTouches[0].screenY;},{passive:true});
+            document.addEventListener('touchend',(e)=>{if(stationsOpen)return;const dx=globalStartX-e.changedTouches[0].screenX,dy=e.changedTouches[0].screenY-globalStartY;if(Math.abs(dx)>50&&Math.abs(dx)>1.5*Math.abs(dy))(dx>0?nextBtn.click():prevBtn.click());},{passive:true});
             
-            audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
-            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
+            audio.addEventListener('error', (e) => {
+                const err = audio.error;
+                console.error('🔊 Audio error:', err?.code, err?.message);
+                if (isPlaying) {
+                    updateStatus('error', 'Ошибка потока');
+                    stopPlayback();
+                }
+            });
+            audio.addEventListener('playing', () => {
+                playbackStarted = true;
+                updateStatus('online');
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            });
+            audio.addEventListener('waiting', () => updateStatus('loading', 'Буферизация...'));
+            audio.addEventListener('stalled', () => console.log('⏳ Stream stalled'));
         }
 
-        // --- ЗАПУСК ---
+        // === INIT ===
         try {
             initPlaceholders();
             setupEventListeners();
             initStationsStatic();
             loadStationsBackground();
-        } catch (e) {
-            console.error("Init Error:", e);
-        }
+        } catch (e) { console.error("Init Error:", e); }
 
         // Telegram Web App
         if (window.Telegram && window.Telegram.WebApp) {
             try {
                 const tg = window.Telegram.WebApp;
-                tg.ready();
-                tg.expand && tg.expand();
+                tg.ready(); tg.expand && tg.expand();
                 if (tg.themeParams) {
                     if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
                     if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) {}
         }
 
-        // 🔥 Очистка ресурсов при закрытии
-        window.addEventListener('beforeunload', () => { 
-            stopPlayback(); 
-            ConstellationViz.cleanup(); 
-        });
-        
-        // Адаптация canvas при ресайзе
+        // Cleanup
+        window.addEventListener('beforeunload', () => { stopPlayback(); ConstellationViz.cleanup(); });
         window.addEventListener('resize', () => {
             if (ConstellationViz.ctx) {
-                const canvas = document.getElementById('viz-canvas');
-                const dpr = window.devicePixelRatio || 1;
-                const rect = canvas.getBoundingClientRect();
-                canvas.width = rect.width * dpr;
-                canvas.height = rect.height * dpr;
+                const c = document.getElementById('viz-canvas'), dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
+                c.width = r.width * dpr; c.height = r.height * dpr;
             }
         });
         
@@ -672,3 +543,21 @@
 </body>
 </html>
 
+
+
+              <script>
+                              // Было (НЕ работает на iOS):
+setTimeout(async () => { await audio.play(); }, 150);
+
+// Стало (РАБОТАЕТ на iOS):
+audio.play().then(...); // Прямой вызов в обработчике клика
+
+function startVisualizer() {
+    audio.addEventListener('playing', onPlaying, { once: true });
+}
+
+
+              </script>
+                        </body>
+                        </html>
+                    
