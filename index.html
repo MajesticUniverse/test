@@ -277,7 +277,6 @@
             original: { log: console.log, warn: console.warn, error: console.error },
             
             init() {
-                // Перехватываем консоль
                 ['log','warn','error'].forEach(type => {
                     console[type] = (...args) => {
                         this.add(type, args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
@@ -288,7 +287,6 @@
                 this.log('info', '🔧 Debug panel initialized');
                 this.updateAudioState();
                 this.updateWAAState();
-                // Обновляем состояние аудио каждые 2 секунды
                 setInterval(() => this.updateAudioState(), 2000);
             },
             
@@ -395,6 +393,7 @@
                     result.textContent = '🔐 Проверка CORS...';
                     try {
                         const url = stations[currentStationKey].stream;
+                        // Note: Standard fetch with CORS. If server doesn't support OPTIONS or GET headers, this might fail.
                         const resp = await fetch(url, { method: 'OPTIONS', headers: { 'Origin': location.origin, 'Access-Control-Request-Method': 'GET' }});
                         const cors = resp.headers.get('access-control-allow-origin');
                         if (cors) {
@@ -640,32 +639,43 @@
         }
         function stopVisualizer() { ConstellationViz.stop(); }
 
+        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK (Safari/iOS friendly)
         function startPlayback(station) {
             Debug.log('info', `🎵 Start playback: ${station.name}`);
             playbackStarted = false;
             ConstellationViz.stop();
             updateStatus('loading', 'Подключение...');
             
+            // Сбрасываем источник и сразу запускаем
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
             
-            audio.play().then(() => {
-                Debug.log('success', '✅ Playback started');
-                isPlaying = true; playbackStarted = true;
-                updatePlayButton();
-                updateStatus('online');
-                startVisualizer();
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                fetchMetadata(station.api);
-                metadataInterval && clearInterval(metadataInterval);
-                metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-            }).catch(err => {
-                Debug.log('error', `❌ Playback failed: ${err.name} - ${err.message}`);
-                updateStatus('error', err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения');
-                isPlaying = false; playbackStarted = false;
-                updatePlayButton();
-                stopVisualizer();
-            });
+            // КРИТИЧНО: play() вызывается СИНХРОННО в ответ на клик
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        Debug.log('success', '✅ Playback started');
+                        isPlaying = true; playbackStarted = true;
+                        updatePlayButton();
+                        updateStatus('online');
+                        startVisualizer();
+                        errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                        fetchMetadata(station.api);
+                        metadataInterval && clearInterval(metadataInterval);
+                        metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                    })
+                    .catch(err => {
+                        Debug.log('error', `❌ Playback failed: ${err.name} - ${err.message}`);
+                        // iOS часто выдает NotAllowedError при первом клике
+                        const msg = err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения';
+                        updateStatus('error', msg);
+                        isPlaying = false; playbackStarted = false;
+                        updatePlayButton();
+                        stopVisualizer();
+                    });
+            }
         }
 
         function stopPlayback() {
