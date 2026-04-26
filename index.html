@@ -1,19 +1,4 @@
-
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  background-color: white; /* Ensure the iframe has a white background */
-                }
-
-                
-              </style>
-                        </head>
-                        <body>
-                            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -58,13 +43,13 @@
         .logo { display: flex; align-items: center; gap: 12px; }
         .radio-title { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: 1px; }
         .header-right { display: flex; align-items: center; gap: 8px; }
-        .burger-btn {
+        .icon-btn {
             width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
             background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
             color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60; font-size: 14px;
         }
-        .burger-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.3); }
+        .icon-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); }
         .burger-btn .burger-line {
             width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px;
             position: absolute; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -168,6 +153,44 @@
         
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
         @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
+
+        /* 🔧 DEBUG PANEL STYLES */
+        .debug-panel {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(5, 2, 15, 0.95); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--border-radius-lg); z-index: 100;
+            display: none; flex-direction: column; padding: 16px;
+        }
+        .debug-panel.open { display: flex; }
+        .debug-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+        .debug-header h3 { font-size: 16px; margin: 0; }
+        .debug-actions { display: flex; gap: 8px; }
+        .debug-btn { padding: 6px 10px; border-radius: 8px; background: var(--btn-glass); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 12px; cursor: pointer; }
+        .debug-btn:hover { background: var(--btn-glass-hover); }
+        .debug-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .debug-logs {
+            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            background: rgba(0,0,0,0.3); border-radius: 8px; padding: 8px;
+            font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px; line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        .debug-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 4px; flex-wrap: wrap; }
+        .debug-entry .time { color: #666; flex-shrink: 0; }
+        .debug-entry.info { color: #a78bfa; }
+        .debug-entry.warn { color: #f59e0b; }
+        .debug-entry.error { color: #ef4444; }
+        .debug-entry.success { color: #10b981; }
+        .debug-section { margin-bottom: 12px; }
+        .debug-section-title { font-size: 11px; font-weight: 700; color: var(--accent-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .debug-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
+        .debug-label { color: var(--text-muted); }
+        .debug-value { color: var(--text-secondary); text-align: right; max-width: 60%; word-break: break-all; }
+        .debug-value.error { color: var(--error); }
+        .debug-value.ok { color: var(--success); }
+        .debug-test-result { font-size: 10px; color: var(--text-muted); margin-top: 4px; padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+        .debug-test-result.ok { color: var(--success); }
+        .debug-test-result.err { color: var(--error); }
     </style>
 </head>
 <body>
@@ -177,7 +200,8 @@
                 <div class="logo"><h1 class="radio-title">MAJESTIC RADIO</h1></div>
                 <div class="header-right">
                     <div class="status-badge" id="status-badge"><span>Оффлайн</span></div>
-                    <button class="burger-btn" id="burger-btn" title="Станции">
+                    <button id="debug-toggle" class="icon-btn" title="Диагностика">🔧</button>
+                    <button class="icon-btn burger-btn" id="burger-btn" title="Станции">
                         <span class="burger-line"></span><span class="burger-line"></span><span class="burger-line"></span>
                     </button>
                 </div>
@@ -202,12 +226,41 @@
                 </button>
                 <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
-
             <div class="stations-overlay" id="stations-overlay">
                 <div class="stations-overlay-content">
                     <div class="stations-overlay-title">📻 Станции</div>
                     <div class="stations-list" id="stations-list"><div class="stations-empty">Загрузка станций...</div></div>
                 </div>
+            </div>
+            
+            <!-- 🔧 DEBUG PANEL -->
+            <div class="debug-panel" id="debug-panel">
+                <div class="debug-header">
+                    <h3>🔧 Диагностика</h3>
+                    <div class="debug-actions">
+                        <button class="debug-btn" id="debug-copy">📋 Копировать</button>
+                        <button class="debug-btn" id="debug-close">✕</button>
+                    </div>
+                </div>
+                <div class="debug-logs" id="debug-logs"></div>
+                <div id="debug-tests">
+                    <div class="debug-section">
+                        <div class="debug-section-title">📡 Тесты подключения</div>
+                        <button class="debug-btn" id="test-internet">🌐 Интернет</button>
+                        <button class="debug-btn" id="test-cors">🔐 CORS</button>
+                        <button class="debug-btn" id="test-audio">🔊 Аудио</button>
+                        <div class="debug-test-result" id="test-result"></div>
+                    </div>
+                    <div class="debug-section">
+                        <div class="debug-section-title">📊 Состояние Audio</div>
+                        <div id="audio-state"></div>
+                    </div>
+                    <div class="debug-section">
+                        <div class="debug-section-title">🎨 Web Audio API</div>
+                        <div id="waa-state"></div>
+                    </div>
+                </div>
+                <small style="color:var(--text-muted); text-align:center; margin-top:8px;">Логи сохраняются до перезагрузки</small>
             </div>
         </div>
     </div>
@@ -216,6 +269,183 @@
     <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
+        // ===============================
+        // 🔧 BUILT-IN DEBUG INSPECTOR
+        // ===============================
+        const Debug = {
+            logs: [], max: 200,
+            original: { log: console.log, warn: console.warn, error: console.error },
+            
+            init() {
+                // Перехватываем консоль
+                ['log','warn','error'].forEach(type => {
+                    console[type] = (...args) => {
+                        this.add(type, args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+                        this.original[type].apply(console, args);
+                    };
+                });
+                this.setupUI();
+                this.log('info', '🔧 Debug panel initialized');
+                this.updateAudioState();
+                this.updateWAAState();
+                // Обновляем состояние аудио каждые 2 секунды
+                setInterval(() => this.updateAudioState(), 2000);
+            },
+            
+            add(type, message) {
+                const time = new Date().toISOString().substring(11, 19);
+                this.logs.unshift({ time, type, message });
+                if (this.logs.length > this.max) this.logs.pop();
+                this.render();
+            },
+            
+            log(type, message) { this.add(type, message); },
+            
+            render() {
+                const el = document.getElementById('debug-logs');
+                if (!el) return;
+                el.innerHTML = this.logs.map(l => 
+                    `<div class="debug-entry ${l.type}"><span class="time">[${l.time}]</span> <span>${l.message}</span></div>`
+                ).join('');
+            },
+            
+            updateAudioState() {
+                const el = document.getElementById('audio-state');
+                if (!el || !audio) return;
+                const err = audio.error;
+                const states = {
+                    network: ['(none)','LOADING(meta)','LOADING','LOADED','ERROR'],
+                    ready: ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA']
+                };
+                el.innerHTML = `
+                    <div class="debug-row"><span class="debug-label">src</span><span class="debug-value">${audio.src ? audio.src.substring(0,40)+'...' : '—'}</span></div>
+                    <div class="debug-row"><span class="debug-label">networkState</span><span class="debug-value ${audio.networkState===3?'error':audio.networkState===2?'warn':'ok'}">${audio.networkState} (${states.network[audio.networkState]||'?'})</span></div>
+                    <div class="debug-row"><span class="debug-label">readyState</span><span class="debug-value ${audio.readyState===0?'warn':'ok'}">${audio.readyState} (${states.ready[audio.readyState]||'?'})</span></div>
+                    <div class="debug-row"><span class="debug-label">paused</span><span class="debug-value">${audio.paused?'✅':'❌'}</span></div>
+                    <div class="debug-row"><span class="debug-label">currentTime</span><span class="debug-value">${audio.currentTime.toFixed(2)}s</span></div>
+                    <div class="debug-row"><span class="debug-label">error</span><span class="debug-value ${err?'error':'ok'}">${err?`code:${err.code} ${['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err.code]||'?'}`:'none'}</span></div>
+                `;
+            },
+            
+            updateWAAState() {
+                const el = document.getElementById('waa-state');
+                if (!el) return;
+                const ctx = ConstellationViz.audioCtx;
+                el.innerHTML = `
+                    <div class="debug-row"><span class="debug-label">AudioContext</span><span class="debug-value ${ctx?'ok':'error'}">${ctx?ctx.state:'not created'}</span></div>
+                    <div class="debug-row"><span class="debug-label">Analyser</span><span class="debug-value ${ConstellationViz.analyser?'ok':'error'}">${ConstellationViz.analyser?'connected':'—'}</span></div>
+                    <div class="debug-row"><span class="debug-label">SampleRate</span><span class="debug-value">${ctx?ctx.sampleRate+'Hz':'—'}</span></div>
+                `;
+            },
+            
+            setupUI() {
+                const toggle = document.getElementById('debug-toggle');
+                const panel = document.getElementById('debug-panel');
+                const close = document.getElementById('debug-close');
+                const copyBtn = document.getElementById('debug-copy');
+                const testInternet = document.getElementById('test-internet');
+                const testCors = document.getElementById('test-cors');
+                const testAudio = document.getElementById('test-audio');
+                const result = document.getElementById('test-result');
+                
+                toggle?.addEventListener('click', () => {
+                    panel.classList.add('open');
+                    this.updateAudioState();
+                    this.updateWAAState();
+                });
+                close?.addEventListener('click', () => panel.classList.remove('open'));
+                
+                copyBtn?.addEventListener('click', async () => {
+                    const text = this.logs.map(l => `[${l.time}] ${l.type.toUpperCase()}: ${l.message}`).join('\n');
+                    const audioState = document.getElementById('audio-state')?.innerText || '';
+                    const waaState = document.getElementById('waa-state')?.innerText || '';
+                    try {
+                        await navigator.clipboard.writeText(`=== MAJESTIC RADIO DEBUG ===\n${text}\n\n=== AUDIO STATE ===\n${audioState}\n\n=== WEB AUDIO API ===\n${waaState}`);
+                        copyBtn.textContent = '✅ Скопировано';
+                        setTimeout(() => copyBtn.textContent = '📋 Копировать', 2000);
+                    } catch {
+                        copyBtn.textContent = '❌ Ошибка';
+                    }
+                });
+                
+                testInternet?.addEventListener('click', async () => {
+                    result.className = 'debug-test-result';
+                    result.textContent = '🌐 Проверка...';
+                    try {
+                        const start = Date.now();
+                        await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });
+                        const ms = Date.now() - start;
+                        result.className = 'debug-test-result ok';
+                        result.textContent = `✅ Интернет работает (${ms}ms)`;
+                        this.log('success', `Internet test OK (${ms}ms)`);
+                    } catch (e) {
+                        result.className = 'debug-test-result err';
+                        result.textContent = `❌ Нет интернета: ${e.name}`;
+                        this.log('error', `Internet test FAILED: ${e.name}`);
+                    }
+                });
+                
+                testCors?.addEventListener('click', async () => {
+                    if (!currentStationKey || !stations[currentStationKey]) {
+                        result.className = 'debug-test-result err';
+                        result.textContent = '❌ Выберите станцию';
+                        return;
+                    }
+                    result.className = 'debug-test-result';
+                    result.textContent = '🔐 Проверка CORS...';
+                    try {
+                        const url = stations[currentStationKey].stream;
+                        const resp = await fetch(url, { method: 'OPTIONS', headers: { 'Origin': location.origin, 'Access-Control-Request-Method': 'GET' }});
+                        const cors = resp.headers.get('access-control-allow-origin');
+                        if (cors) {
+                            result.className = 'debug-test-result ok';
+                            result.textContent = `✅ CORS разрешён: ${cors}`;
+                            this.log('success', `CORS test OK: ${cors}`);
+                        } else {
+                            result.className = 'debug-test-result err';
+                            result.textContent = `❌ CORS не настроен`;
+                            this.log('error', 'CORS test FAILED: no header');
+                        }
+                    } catch (e) {
+                        result.className = 'debug-test-result err';
+                        result.textContent = `❌ Ошибка: ${e.message}`;
+                        this.log('error', `CORS test error: ${e.message}`);
+                    }
+                });
+                
+                testAudio?.addEventListener('click', async () => {
+                    if (!currentStationKey || !stations[currentStationKey]) {
+                        result.className = 'debug-test-result err';
+                        result.textContent = '❌ Выберите станцию';
+                        return;
+                    }
+                    result.className = 'debug-test-result';
+                    result.textContent = '🔊 Тест аудио...';
+                    try {
+                        const testAudio = new Audio();
+                        testAudio.crossOrigin = 'anonymous';
+                        testAudio.preload = 'none';
+                        const url = stations[currentStationKey].stream + '?test=' + Date.now();
+                        testAudio.src = url;
+                        const start = Date.now();
+                        await new Promise((resolve, reject) => {
+                            const timer = setTimeout(() => reject(new Error('Timeout')), 5000);
+                            testAudio.oncanplay = () => { clearTimeout(timer); resolve(); };
+                            testAudio.onerror = () => { clearTimeout(timer); reject(testAudio.error || new Error('Load failed')); };
+                        });
+                        const ms = Date.now() - start;
+                        result.className = 'debug-test-result ok';
+                        result.textContent = `✅ Поток доступен (${ms}ms)`;
+                        this.log('success', `Audio test OK (${ms}ms)`);
+                    } catch (e) {
+                        result.className = 'debug-test-result err';
+                        result.textContent = `❌ Ошибка: ${e.message}`;
+                        this.log('error', `Audio test FAILED: ${e.message}`);
+                    }
+                });
+            }
+        };
+
         // ===============================
         // 🎨 CONSTELLATION VISUALIZER
         // ===============================
@@ -238,9 +468,9 @@
                     this.sourceNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
                     this.nodes = Array.from({length: this.CONFIG.NUM_NODES}, () => ({x:0,y:0,energy:0,targetY:0}));
-                    console.log('✅ ConstellationViz initialized');
+                    Debug.log('success', '✅ ConstellationViz initialized');
                     return true;
-                } catch (e) { console.error('❌ ConstellationViz init failed:', e.message); return false; }
+                } catch (e) { Debug.log('error', '❌ ConstellationViz init failed: ' + e.message); return false; }
             },
             
             draw() {
@@ -392,7 +622,6 @@
             img.src=url||DEFAULT_COVER_SVG;
         }
 
-        // 🔥 ВИЗУАЛИЗАТОР: инициализация ТОЛЬКО после события 'playing'
         function startVisualizer() {
             const onPlaying = () => {
                 audio.removeEventListener('playing', onPlaying);
@@ -411,30 +640,27 @@
         }
         function stopVisualizer() { ConstellationViz.stop(); }
 
-        // 🔥 ГЛАВНАЯ ФУНКЦИЯ: БЕЗ setTimeout, прямой вызов play()
         function startPlayback(station) {
-            console.log(`🎵 Start playback: ${station.name}`);
+            Debug.log('info', `🎵 Start playback: ${station.name}`);
             playbackStarted = false;
             ConstellationViz.stop();
             updateStatus('loading', 'Подключение...');
             
-            // Устанавливаем src и сразу вызываем play() — БЕЗ setTimeout!
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
             
-            // 🔥 ПРЯМОЙ ВЫЗОВ play() в ответ на жест пользователя
             audio.play().then(() => {
-                console.log('✅ Playback started');
+                Debug.log('success', '✅ Playback started');
                 isPlaying = true; playbackStarted = true;
                 updatePlayButton();
                 updateStatus('online');
-                startVisualizer(); // Визуализатор запустится после события 'playing'
+                startVisualizer();
                 errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
                 fetchMetadata(station.api);
                 metadataInterval && clearInterval(metadataInterval);
                 metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
             }).catch(err => {
-                console.error('❌ Playback failed:', err.name, err.message);
+                Debug.log('error', `❌ Playback failed: ${err.name} - ${err.message}`);
                 updateStatus('error', err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения');
                 isPlaying = false; playbackStarted = false;
                 updatePlayButton();
@@ -474,7 +700,7 @@
                     if (song.art?.trim()) { let artUrl = song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; setCoverArt(artUrl); }
                 }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) {}
+            } catch (e) { Debug.log('warn', 'Metadata fetch failed: ' + e.message); }
         }
 
         function setupEventListeners() {
@@ -494,28 +720,28 @@
             
             audio.addEventListener('error', (e) => {
                 const err = audio.error;
-                console.error('🔊 Audio error:', err?.code, err?.message);
-                if (isPlaying) {
-                    updateStatus('error', 'Ошибка потока');
-                    stopPlayback();
-                }
+                Debug.log('error', `🔊 Audio error: code=${err?.code} ${['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err?.code]||'?'}`);
+                if (isPlaying) { updateStatus('error', 'Ошибка потока'); stopPlayback(); }
             });
             audio.addEventListener('playing', () => {
                 playbackStarted = true;
                 updateStatus('online');
+                Debug.updateAudioState();
                 errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             });
-            audio.addEventListener('waiting', () => updateStatus('loading', 'Буферизация...'));
-            audio.addEventListener('stalled', () => console.log('⏳ Stream stalled'));
+            audio.addEventListener('waiting', () => { updateStatus('loading', 'Буферизация...'); Debug.log('warn', '⏳ Buffering...'); });
+            audio.addEventListener('stalled', () => Debug.log('warn', '⚠️ Stream stalled'));
+            audio.addEventListener('canplay', () => Debug.log('info', '✅ Audio canplay'));
         }
 
         // === INIT ===
         try {
+            Debug.init();
             initPlaceholders();
             setupEventListeners();
             initStationsStatic();
             loadStationsBackground();
-        } catch (e) { console.error("Init Error:", e); }
+        } catch (e) { Debug.log('error', 'Init Error: ' + e.message); }
 
         // Telegram Web App
         if (window.Telegram && window.Telegram.WebApp) {
@@ -536,28 +762,11 @@
                 const c = document.getElementById('viz-canvas'), dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
                 c.width = r.width * dpr; c.height = r.height * dpr;
             }
+            Debug.updateAudioState();
         });
         
-        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
+        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, Debug, ConstellationViz };
     </script>
 </body>
 </html>
 
-
-
-              <script>
-                              // Было (НЕ работает на iOS):
-setTimeout(async () => { await audio.play(); }, 150);
-
-// Стало (РАБОТАЕТ на iOS):
-audio.play().then(...); // Прямой вызов в обработчике клика
-
-function startVisualizer() {
-    audio.addEventListener('playing', onPlaying, { once: true });
-}
-
-
-              </script>
-                        </body>
-                        </html>
-                    
