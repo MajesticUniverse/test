@@ -200,8 +200,8 @@
         </div>
     </div>
 
-    <!-- Для мобильных браузеров (iOS Safari/Яндекс) не форсируем CORS на теге audio -->
-    <audio id="audio-player" preload="none" playsinline></audio>
+    <!-- 🔥 crossorigin="anonymous" КРИТИЧЕН для визуализатора -->
+    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
     
     <script>
         // ===============================
@@ -211,7 +211,6 @@
             // Глобальные переменные
             audioCtx: null, analyser: null, sourceNode: null, freqData: null,
             vizAnimId: null, isRunning: false,
-            syntheticPhase: 0,
             
             // Настройки
             CONFIG: {
@@ -282,21 +281,12 @@
                 this.analyser.getByteFrequencyData(this.freqData);
                 const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
                 const maxFreqBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
-
-                // Если из-за CORS/ограничений мобильного браузера анализатор отдаёт "нули",
-                // включаем мягкую синтетическую анимацию, чтобы визуализатор не замирал.
-                let totalEnergy = 0;
-                for (let i = 0; i <= maxFreqBin; i++) totalEnergy += this.freqData[i];
-                const hasSignal = totalEnergy > Math.max(1500, maxFreqBin * 1.5);
-                this.syntheticPhase += 0.04;
                 
                 // Обновляем узлы
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const ratio = i / (this.CONFIG.NUM_NODES - 1);
                     const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
-                    const rawVal = this.freqData[bin] / 255;
-                    const syntheticVal = 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(this.syntheticPhase + ratio * 8)) + Math.random() * 0.08;
-                    const val = hasSignal ? rawVal : Math.min(0.45, syntheticVal);
+                    const val = this.freqData[bin] / 255;
                     
                     this.nodes[i].x = ratio * w;
                     this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
@@ -564,25 +554,22 @@
             playbackStarted = false; 
             // 🔥 Останавливаем визуализатор перед сменой источника
             ConstellationViz.stop();
-            // iOS Safari / Яндекс Mobile: не форсируем CORS для самого стрима,
-            // иначе при прокси/нестандартных заголовках воспроизведение может блокироваться.
-            audio.removeAttribute('crossorigin');
             audio.src = `${station.stream}?t=${Date.now()}`;
-            (async () => {
+            setTimeout(async () => {
                 try {
-                    await audio.play();
-                    console.log('✅ Playback started');
+                    await audio.play(); 
+                    console.log('✅ Playback started'); 
                     isPlaying = true; playbackStarted = true;
-                    updatePlayButton();
+                    updatePlayButton(); 
                     // 🔥 Запускаем визуализатор ТОЛЬКО после успешного play()
                     startVisualizer();
-                    updateStatus(true);
+                    updateStatus(true); 
                     errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(station.api);
+                    fetchMetadata(station.api); 
                     metadataInterval && clearInterval(metadataInterval);
                     metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                 } catch (err) { console.error('❌ Playback error:', err); updateStatus(false); }
-            })();
+            }, 150);
         }
 
         function stopPlayback() {
