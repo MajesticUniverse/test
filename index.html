@@ -205,12 +205,12 @@
         // ===============================
         const _cViz = {
             ctx: null, analyser: null, srcNode: null, freqData: null, animId: null,
-            running: false, audioCtx: null,
-            CONFIG: { NUM_NODES: 32, CONN_DISTANCE: 40, FFT_SIZE: 1024, SMOOTHING: 0.8, MAX_FREQ: 8000 },
+            running: false, audioCtx: null, canvasSize: { w: 0, h: 0, dpr: 1 },
+            CONFIG: { NUM_NODES: 32, CONN_DISTANCE: 42, FFT_SIZE: 1024, SMOOTHING: 0.82, MAX_FREQ: 9000, NODE_HEIGHT: 0.72, BASE_Y: 0.86 },
             nodes: [],
 
             init(audioEl) {
-                if (this.audioCtx) return;
+                if (this.audioCtx) return true;
                 try {
                     const AC = window.AudioContext || window.webkitAudioContext;
                     this.audioCtx = new AC();
@@ -221,66 +221,124 @@
                     this.srcNode = this.audioCtx.createMediaElementSource(audioEl);
                     this.srcNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
-                    this.nodes = Array.from({length: this.CONFIG.NUM_NODES}, () => ({x:0,y:0,energy:0}));
+                    this.nodes = Array.from({ length: this.CONFIG.NUM_NODES }, () => ({ x: 0, y: 0, targetY: 0, energy: 0 }));
                     console.log('✅ Visualizer initialized');
-                } catch(e) { console.error('❌ Viz init failed:', e); }
+                    return true;
+                } catch (e) {
+                    console.error('❌ Viz init failed:', e);
+                    return false;
+                }
+            },
+
+            resizeCanvas(force = false) {
+                const c = document.getElementById('viz-canvas');
+                if (!c) return null;
+                if (!this.ctx) this.ctx = c.getContext('2d');
+                const dpr = window.devicePixelRatio || 1;
+                const rect = c.getBoundingClientRect();
+                const needsResize = force || this.canvasSize.w !== rect.width || this.canvasSize.h !== rect.height || this.canvasSize.dpr !== dpr;
+                if (needsResize) {
+                    c.width = rect.width * dpr;
+                    c.height = rect.height * dpr;
+                    this.canvasSize = { w: rect.width, h: rect.height, dpr };
+                }
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                return rect;
+            },
+
+            clearCanvas() {
+                const c = document.getElementById('viz-canvas');
+                if (!c || !this.ctx) return;
+                const rect = c.getBoundingClientRect();
+                this.ctx.clearRect(0, 0, rect.width, rect.height);
             },
 
             draw() {
-                const c = document.getElementById('viz-canvas');
-                if (!c) return;
-                const ctx = this.ctx || c.getContext('2d'); this.ctx = ctx;
-                const dpr = window.devicePixelRatio || 1;
-                const rect = c.getBoundingClientRect();
-                c.width = rect.width * dpr; c.height = rect.height * dpr;
-                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                const w = rect.width, h = rect.height;
-                ctx.clearRect(0, 0, w, h);
-                
-                if (!this.analyser || !this.freqData) { this.animId = requestAnimationFrame(() => this.draw()); return; }
+                if (!this.running) return;
+                const rect = this.resizeCanvas(false);
+                if (!rect || !this.ctx) return;
+                const w = rect.width;
+                const h = rect.height;
+                this.ctx.clearRect(0, 0, w, h);
+
+                if (!this.analyser || !this.freqData || !this.audioCtx) {
+                    this.animId = requestAnimationFrame(() => this.draw());
+                    return;
+                }
+
                 this.analyser.getByteFrequencyData(this.freqData);
-                
                 const bw = this.audioCtx.sampleRate / this.analyser.fftSize;
                 const mb = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / bw));
-                
+
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const r = i / (this.CONFIG.NUM_NODES - 1);
-                    const val = this.freqData[Math.max(0, Math.floor(r * mb))] / 255;
+                    const bin = Math.max(0, Math.floor(r * mb));
+                    const val = this.freqData[bin] / 255;
                     this.nodes[i].x = r * w;
-                    this.nodes[i].y = h * 0.9 - val * h * 0.7;
+                    this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);
+                    this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
                     this.nodes[i].energy = val;
                 }
-                
-                ctx.lineWidth = 0.8;
+
+                this.ctx.lineWidth = 0.8;
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
-                        const dx = this.nodes[i].x - this.nodes[j].x, dy = this.nodes[i].y - this.nodes[j].y;
-                        if (dx*dx + dy*dy < this.CONFIG.CONN_DISTANCE ** 2) {
-                            ctx.strokeStyle = `rgba(180,160,255,${0.3 + (this.nodes[i].energy + this.nodes[j].energy) * 0.4})`;
-                            ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke();
+                        const dx = this.nodes[i].x - this.nodes[j].x;
+                        const dy = this.nodes[i].y - this.nodes[j].y;
+                        const distSq = dx * dx + dy * dy;
+                        if (distSq < this.CONFIG.CONN_DISTANCE * this.CONFIG.CONN_DISTANCE) {
+                            const dist = Math.sqrt(distSq);
+                            const alpha = (1 - dist / this.CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + this.nodes[i].energy + this.nodes[j].energy);
+                            this.ctx.strokeStyle = `rgba(180,160,255,${Math.max(0, Math.min(1, alpha))})`;
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(this.nodes[i].x, this.nodes[i].y);
+                            this.ctx.lineTo(this.nodes[j].x, this.nodes[j].y);
+                            this.ctx.stroke();
                         }
                     }
                 }
+
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const n = this.nodes[i];
-                    ctx.fillStyle = `rgba(255,255,255,${0.5 + n.energy * 0.5})`;
-                    ctx.beginPath(); ctx.arc(n.x, n.y, 2 + n.energy * 4, 0, Math.PI * 2); ctx.fill();
+                    const radius = 1.2 + n.energy * 3.5;
+                    const alpha = 0.4 + n.energy * 0.6;
+                    this.ctx.shadowColor = `rgba(167,139,250,${alpha * 0.6})`;
+                    this.ctx.shadowBlur = 6;
+                    this.ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                    this.ctx.beginPath();
+                    this.ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.shadowBlur = 0;
                 }
+
                 this.animId = requestAnimationFrame(() => this.draw());
             },
 
-            start() {
+            async start(audioEl) {
                 document.getElementById('viz-container').classList.add('active');
-                if (!this.running) { this.running = true; cancelAnimationFrame(this.animId); this.draw(); }
+                if (!this.init(audioEl)) return;
+                if (this.audioCtx?.state === 'suspended') {
+                    try { await this.audioCtx.resume(); } catch (e) { console.error('❌ AudioContext resume failed:', e); }
+                }
+                if (this.running) return;
+                this.running = true;
+                cancelAnimationFrame(this.animId);
+                this.resizeCanvas(true);
+                this.draw();
             },
+
             stop() {
                 document.getElementById('viz-container').classList.remove('active');
-                this.running = false; cancelAnimationFrame(this.animId);
+                this.running = false;
+                cancelAnimationFrame(this.animId);
+                this.clearCanvas();
             },
+
             cleanup() {
                 this.stop();
-                if (this.srcNode) { try { this.srcNode.disconnect(); } catch(e) {} }
-                if (this.audioCtx) { this.audioCtx.close().catch(()=>{}); }
+                if (this.srcNode) { try { this.srcNode.disconnect(); } catch (e) {} this.srcNode = null; }
+                if (this.analyser) { try { this.analyser.disconnect(); } catch (e) {} this.analyser = null; }
+                if (this.audioCtx) { this.audioCtx.close().catch(() => {}); this.audioCtx = null; }
             }
         };
 
@@ -318,6 +376,8 @@
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
+        let reconnectTimeout = null, reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
 
         const DEFAULT_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
@@ -432,39 +492,32 @@
 
         // 🔥 ВИЗУАЛИЗАТОР: инициализация ТОЛЬКО после успешного play()
         function startVisualizer() {
-            // Ждём, пока аудио действительно начнёт играть
-            if (audio.readyState >= 1) { // HAVE_METADATA или выше
-                if (!_cViz.audioCtx) {
-                    _cViz.init(audio);
-                    // Для iOS: если AudioContext в состоянии suspended, resume()
-                    if (_cViz.audioCtx?.state === 'suspended') {
-                        _cViz.audioCtx.resume().then(() => _cViz.start()).catch(console.error);
-                    } else {
-                        _cViz.start();
-                    }
-                } else {
-                    _cViz.start();
-                }
-            } else {
-                // Подписываемся на событие playing для инициализации
-                const onPlaying = () => {
-                    audio.removeEventListener('playing', onPlaying);
-                    if (!_cViz.audioCtx) {
-                        _cViz.init(audio);
-                        if (_cViz.audioCtx?.state === 'suspended') {
-                            _cViz.audioCtx.resume().then(() => _cViz.start()).catch(console.error);
-                        } else {
-                            _cViz.start();
-                        }
-                    }
-                };
-                audio.addEventListener('playing', onPlaying, { once: true });
-            }
+            _cViz.start(audio).catch((e) => console.error('❌ Visualizer start failed:', e));
         }
         function stopVisualizer() { _cViz.stop(); }
 
+        function scheduleReconnect(reason = 'unknown') {
+            if (!isPlaying || !currentStationKey || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+            reconnectTimeout && clearTimeout(reconnectTimeout);
+            const delay = Math.min(12000, 1000 * Math.pow(2, reconnectAttempts));
+            reconnectAttempts += 1;
+            console.log(`🔁 Reconnect in ${delay}ms (${reason}), attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+            reconnectTimeout = setTimeout(() => {
+                const station = stations[currentStationKey];
+                if (!station || !isPlaying) return;
+                startPlayback(station);
+            }, delay);
+        }
+
+        function clearReconnect() {
+            reconnectTimeout && clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+            reconnectAttempts = 0;
+        }
+
         function startPlayback(station) {
             console.log(`🎵 Playing: ${station.stream}`); 
+            clearReconnect();
             playbackStarted = false; 
             audio.src = `${station.stream}?t=${Date.now()}`;
             // 🔥 Важно: не вызываем visualizer здесь!
@@ -477,6 +530,7 @@
                     // 🔥 Запускаем визуализатор ТОЛЬКО после успешного play()
                     startVisualizer();
                     updateStatus(true); 
+                    clearReconnect();
                     errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
                     fetchMetadata(station.api); 
                     metadataInterval && clearInterval(metadataInterval);
@@ -484,6 +538,7 @@
                 } catch (err) { 
                     console.error('❌ Playback error:', err); 
                     updateStatus(false); 
+                    scheduleReconnect('play() failed');
                 }
             }, 150);
         }
@@ -493,6 +548,7 @@
             stopVisualizer(); stopProgressAnimation(); updateStatus(false);
             metadataInterval && (clearInterval(metadataInterval), metadataInterval = null);
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            clearReconnect();
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
 
@@ -539,8 +595,15 @@
                 Math.abs(diffX) > 50 && Math.abs(diffX) > 1.5 * Math.abs(diffY) && (diffX > 0 ? nextBtn.click() : prevBtn.click());
             }, { passive: true });
             
-            audio.addEventListener('error', () => { console.log('🔊 Audio error'); });
-            audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
+            audio.addEventListener('error', () => { console.log('🔊 Audio error'); scheduleReconnect('audio error'); });
+            audio.addEventListener('stalled', () => scheduleReconnect('stalled'));
+            audio.addEventListener('waiting', () => scheduleReconnect('waiting'));
+            audio.addEventListener('playing', () => {
+                playbackStarted = true;
+                updateStatus(true);
+                clearReconnect();
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            });
         }
 
         // --- ЗАПУСК ---
@@ -566,6 +629,12 @@
             } catch (e) { /* ignore */ }
         }
 
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && isPlaying && _cViz.audioCtx?.state === 'suspended') {
+                _cViz.audioCtx.resume().catch(() => {});
+            }
+        });
+
         // 🔥 Очистка ресурсов при закрытии
         window.addEventListener('beforeunload', () => { 
             stopPlayback(); 
@@ -573,18 +642,9 @@
         });
         
         // Адаптация canvas при ресайзе
-        window.addEventListener('resize', () => {
-            if (_cViz.ctx) {
-                const c = document.getElementById('viz-canvas');
-                const dpr = window.devicePixelRatio || 1;
-                const rect = c.getBoundingClientRect();
-                c.width = rect.width * dpr;
-                c.height = rect.height * dpr;
-            }
-        });
+        window.addEventListener('resize', () => _cViz.resizeCanvas(true));
         
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio };
     </script>
 </body>
 </html>
-
