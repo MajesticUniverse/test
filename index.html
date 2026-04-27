@@ -266,8 +266,8 @@
         </div>
     </div>
 
-    <!-- 🔥 Убрали crossorigin для теста, чтобы исключить его влияние на воспроизведение -->
-    <audio id="audio-player" preload="metadata" playsinline></audio>
+    <!-- 🔥 crossorigin="anonymous" ОБЯЗАТЕЛЕН для визуализатора с внешним источником -->
+    <audio id="audio-player" preload="metadata" playsinline crossorigin="anonymous"></audio>
     
     <script>
         // ===============================
@@ -286,7 +286,6 @@
                 });
                 this.setupUI();
                 this.log('info', '🔧 Debug panel initialized');
-                this.log('info', ` User Agent: ${navigator.userAgent}`);
                 this.updateAudioState();
                 this.updateWAAState();
                 setInterval(() => this.updateAudioState(), 2000);
@@ -423,7 +422,7 @@
                     result.textContent = '🔊 Тест аудио...';
                     try {
                         const testAudio = new Audio();
-                        // Без crossorigin для чистоты теста
+                        testAudio.crossOrigin = 'anonymous';
                         const url = stations[currentStationKey].stream + '?test=' + Date.now();
                         testAudio.src = url;
                         const start = Date.now();
@@ -450,7 +449,7 @@
         // ===============================
         const ConstellationViz = {
             audioCtx: null, analyser: null, sourceNode: null, freqData: null,
-            vizAnimId: null, isRunning: false,
+            vizAnimId: null, isRunning: false, silentFrames: 0,
             CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 },
             nodes: [],
             
@@ -463,14 +462,19 @@
                     this.analyser.fftSize = this.CONFIG.FFT_SIZE;
                     this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
                     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-                    // Важно: если audio элемент не имеет crossorigin, MediaElementSource может выдать ошибку на кросс-доменном ресурсе
+                    
+                    // Подключаем MediaElementSource
                     this.sourceNode = this.audioCtx.createMediaElementSource(audioElement);
                     this.sourceNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
+                    
                     this.nodes = Array.from({length: this.CONFIG.NUM_NODES}, () => ({x:0,y:0,energy:0,targetY:0}));
                     Debug.log('success', '✅ ConstellationViz initialized');
                     return true;
-                } catch (e) { Debug.log('error', '❌ ConstellationViz init failed: ' + e.message); return false; }
+                } catch (e) { 
+                    Debug.log('error', '❌ ConstellationViz init failed: ' + e.message); 
+                    return false; 
+                }
             },
             
             draw() {
@@ -484,9 +488,28 @@
                 const w = rect.width, h = rect.height;
                 ctx.clearRect(0, 0, w, h);
                 if (!this.analyser || !this.freqData) { this.vizAnimId = requestAnimationFrame(() => this.draw()); return; }
+                
                 this.analyser.getByteFrequencyData(this.freqData);
+                
+                // Проверка на "тишину" (нулевые данные)
+                let maxVal = 0;
+                for (let i = 0; i < this.freqData.length; i++) {
+                    if (this.freqData[i] > maxVal) maxVal = this.freqData[i];
+                }
+                
+                // Если 60 кадров подряд тишина, логируем (возможно проблема с CORS)
+                if (maxVal === 0) {
+                    this.silentFrames++;
+                    if (this.silentFrames === 60) {
+                        Debug.log('warn', '⚠️ Viz sees silence (0 data). Check CORS headers on stream.');
+                    }
+                } else {
+                    this.silentFrames = 0;
+                }
+
                 const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;
                 const maxFreqBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));
+                
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     const ratio = i / (this.CONFIG.NUM_NODES - 1);
                     const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
@@ -496,6 +519,7 @@
                     this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;
                     this.nodes[i].energy = val;
                 }
+                
                 ctx.lineWidth = 0.8;
                 for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {
                     for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {
@@ -519,7 +543,12 @@
             
             start() {
                 document.getElementById('viz-container').classList.add('active');
-                if (!this.isRunning) { this.isRunning = true; cancelAnimationFrame(this.vizAnimId); this.draw(); }
+                if (!this.isRunning) { 
+                    this.isRunning = true; 
+                    this.silentFrames = 0;
+                    cancelAnimationFrame(this.vizAnimId); 
+                    this.draw(); 
+                }
             },
             stop() {
                 document.getElementById('viz-container').classList.remove('active');
@@ -630,8 +659,12 @@
                 audio.removeEventListener('playing', onPlaying);
                 if (!ConstellationViz.audioCtx) {
                     ConstellationViz.init(audio);
-                    if (ConstellationViz.audioCtx?.state === 'suspended') {
-                        ConstellationViz.audioCtx.resume().then(() => ConstellationViz.start()).catch(console.error);
+                    // Принудительно разбудить AudioContext, если он спит (iOS)
+                    if (ConstellationViz.audioCtx && ConstellationViz.audioCtx.state === 'suspended') {
+                        ConstellationViz.audioCtx.resume().then(() => {
+                            Debug.log('info', ' AudioContext resumed');
+                            ConstellationViz.start();
+                        }).catch(e => Debug.log('error', 'Failed to resume AudioCtx: ' + e.message));
                     } else {
                         ConstellationViz.start();
                     }
@@ -643,27 +676,19 @@
         }
         function stopVisualizer() { ConstellationViz.stop(); }
 
-        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK
         function startPlayback(station) {
-            if (isProcessingPlay) {
-                Debug.log('warn', '⚠️ Play already in progress');
-                return;
-            }
+            if (isProcessingPlay) return;
             isProcessingPlay = true;
             if (playTimeout) clearTimeout(playTimeout);
             
             Debug.log('info', `🎵 Start playback: ${station.name}`);
-            Debug.log('info', `🔗 URL: ${station.stream}`);
-            
             playbackStarted = false;
             ConstellationViz.stop();
             updateStatus('loading', 'Подключение...');
             
-            // Сбрасываем источник
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
             
-            // КРИТИЧНО: play() вызывается СИНХРОННО
             const playPromise = audio.play();
             
             if (playPromise !== undefined) {
@@ -673,7 +698,9 @@
                         isPlaying = true; playbackStarted = true;
                         updatePlayButton();
                         updateStatus('online');
+                        // Визуализатор запустится после события 'playing'
                         startVisualizer();
+                        
                         errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
                         fetchMetadata(station.api);
                         metadataInterval && clearInterval(metadataInterval);
@@ -694,7 +721,7 @@
             
             playTimeout = setTimeout(() => {
                 if (!isPlaying && !audio.paused) {
-                    Debug.log('warn', '⏱️ Play timeout reached, resetting');
+                    Debug.log('warn', '⏱️ Play timeout reached');
                     audio.pause();
                     audio.src = '';
                     updateStatus('error', 'Таймаут подключения');
@@ -737,7 +764,7 @@
                     if (song.art?.trim()) { let artUrl = song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; setCoverArt(artUrl); }
                 }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) { Debug.log('warn', 'Metadata fetch failed: ' + e.message); }
+            } catch (e) { Debug.log('warn', 'Metadata fetch failed'); }
         }
 
         function setupEventListeners() {
@@ -757,7 +784,7 @@
             
             audio.addEventListener('error', (e) => {
                 const err = audio.error;
-                Debug.log('error', `🔊 Audio error: code=${err?.code} ${['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err?.code]||'?'}`);
+                Debug.log('error', `🔊 Audio error: code=${err?.code}`);
                 if (isPlaying) { updateStatus('error', 'Ошибка потока'); stopPlayback(); }
             });
             audio.addEventListener('playing', () => {
@@ -785,10 +812,6 @@
             try {
                 const tg = window.Telegram.WebApp;
                 tg.ready(); tg.expand && tg.expand();
-                if (tg.themeParams) {
-                    if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--bg-primary', tg.themeParams.bg_color);
-                    if (tg.themeParams.text_color) document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color);
-                }
             } catch (e) {}
         }
 
