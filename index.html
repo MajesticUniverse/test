@@ -2,20 +2,16 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Majestic Radio · Liquid Drum Visualizer</title>
+    <title>Liquid Drum · Настоящий Визуализатор</title>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-        }
+        * { box-sizing: border-box; user-select: none; }
         body {
             background: linear-gradient(135deg, #050a14 0%, #0a121f 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             margin: 0;
             padding: 2rem;
         }
@@ -26,143 +22,78 @@
             backdrop-filter: blur(16px);
             border-radius: 3rem;
             padding: 1.8rem 2rem 2rem;
-            box-shadow: 0 25px 45px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1);
             border: 1px solid rgba(72, 187, 255, 0.3);
-        }
-        .station-info { text-align: center; margin-bottom: 1.8rem; }
-        .station-name {
-            font-size: 1.7rem;
-            font-weight: 700;
-            background: linear-gradient(120deg, #fff, #7bc5ff);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-        }
-        .listener-count {
-            font-size: 0.85rem;
-            color: #b0d4ff;
-            background: rgba(0, 30, 60, 0.6);
-            display: inline-block;
-            padding: 0.2rem 1rem;
-            border-radius: 40px;
-            margin-top: 8px;
         }
         .now-playing-card {
             background: rgba(0, 0, 0, 0.45);
             border-radius: 2rem;
-            padding: 1rem 1.5rem;
+            padding: 1rem;
             margin-bottom: 2rem;
             text-align: center;
-            border-left: 3px solid #3b82f6;
         }
-        .song-title {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #f0f3fa;
-            word-break: break-word;
-            margin-bottom: 0.25rem;
-        }
-        .song-artist { font-size: 1.1rem; color: #9bb7d4; font-weight: 500; }
-        .visualizer-container {
-            background: #03060ecc;
-            border-radius: 2rem;
-            padding: 0.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 0 12px rgba(0, 160, 255, 0.2);
-        }
+        .song-title { font-size: 1.5rem; color: white; margin: 0; word-break: break-word; }
+        .song-artist { font-size: 1rem; color: #aaa; margin-top: 5px; }
         canvas {
             display: block;
             width: 100%;
-            height: auto;
+            height: 160px;
             background: #01040b;
-            border-radius: 1.5rem;
-            box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+            border-radius: 1rem;
+            margin: 20px 0;
         }
-        .controls { display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem; }
         button {
-            background: rgba(20, 50, 88, 0.9);
+            background: #2c5a9e;
             border: none;
             color: white;
-            font-size: 1.4rem;
+            font-size: 1rem;
             cursor: pointer;
-            padding: 0.6rem 1.3rem;
-            border-radius: 3rem;
-            backdrop-filter: blur(4px);
-            transition: 0.2s;
-            font-weight: 600;
-            box-shadow: 0 5px 12px rgba(0,0,0,0.3);
-            border: 0.5px solid rgba(59,130,246,0.6);
+            padding: 8px 20px;
+            border-radius: 2rem;
+            margin: 5px;
         }
-        button:hover { background: #2c5a9e; transform: scale(0.97); }
-        .status-badge {
-            font-size: 0.8rem;
-            background: #1f2a44;
-            display: inline-block;
-            border-radius: 30px;
-            padding: 0.3rem 1rem;
-            margin-top: 1rem;
-            text-align: center;
-            color: #bbd9ff;
-        }
-        footer { font-size: 0.7rem; text-align: center; margin-top: 1.5rem; color: #5e7c9c; }
-        @media (max-width: 550px) {
-            .radio-visualizer { padding: 1rem; }
-            .song-title { font-size: 1.2rem; }
-            .station-name { font-size: 1.3rem; }
-        }
+        .status-badge { text-align: center; color: #bbd9ff; font-size: 0.8rem; margin-top: 15px; }
+        footer { font-size: 0.7rem; text-align: center; margin-top: 1rem; color: #5e7c9c; }
     </style>
 </head>
 <body>
 <div class="radio-visualizer">
-    <div class="station-info">
-        <div class="station-name" id="stationName">🎧 Majestic Radio</div>
-        <div class="listener-count" id="listenerCount">👥 слушателей: --</div>
-    </div>
     <div class="now-playing-card">
         <div class="song-title" id="songTitle">—</div>
         <div class="song-artist" id="songArtist">—</div>
-        <div id="liveBadge" style="font-size:0.75rem; margin-top: 6px; color:#6c9dd4;"></div>
+        <canvas id="audioCanvas" width="800" height="160"></canvas>
     </div>
-    <div class="visualizer-container">
-        <canvas id="audioCanvas" width="800" height="160" style="width:100%; height:auto; aspect-ratio:800/160"></canvas>
-    </div>
-    <div class="controls">
-        <button id="playBtn">▶ Включить</button>
+    <div style="text-align: center;">
+        <button id="playBtn">🎧 Включить эфир</button>
         <button id="stopBtn">⏹ Выключить</button>
     </div>
-    <div class="status-badge" id="audioStatus">⚡ Статус: Остановлен</div>
-    <footer>🎛 Liquid Drum · Визуализация (режим совместимости)</footer>
+    <div class="status-badge" id="audioStatus">⚡ Остановлен</div>
+    <footer>🎛 Liquid Drum · Реальная анализ звука через Audio Fetch</footer>
 </div>
 
 <script>
     const CONFIG = {
-        baseUrl: 'https://majesticradio.duckdns.org',
-        stationId: '1',
         streamUrl: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3'
     };
 
-    let audioElement = null;
+    let audioContext = null;
+    let currentSource = null;
     let isPlaying = false;
     let animationId = null;
-    let fakeMode = false;   // будет true, если captureStream не поддерживается
+    let currentFetchedBuffer = null; // Храним декодированный буфер
 
+    // DOM Элементы
     const canvas = document.getElementById('audioCanvas');
-    const ctx = canvas.getContext('2d');
+    const canvasCtx = canvas.getContext('2d');
     const songTitleEl = document.getElementById('songTitle');
     const songArtistEl = document.getElementById('songArtist');
-    const stationNameEl = document.getElementById('stationName');
-    const listenerCountEl = document.getElementById('listenerCount');
-    const liveBadge = document.getElementById('liveBadge');
     const audioStatusSpan = document.getElementById('audioStatus');
 
-    // === API станции ===
+    // Получение метаданных (можно оставить прошлую версию)
     async function fetchNowPlaying() {
         try {
-            const res = await fetch(`${CONFIG.baseUrl}/api/nowplaying/${CONFIG.stationId}`);
+            const res = await fetch('https://majesticradio.duckdns.org/api/nowplaying/1');
             if (!res.ok) throw new Error();
             const data = await res.json();
-            if (data.station?.name) stationNameEl.innerText = data.station.name;
-            if (data.listeners?.total !== undefined) listenerCountEl.innerText = `👥 слушателей: ${data.listeners.total}`;
             if (data.now_playing?.song) {
                 songTitleEl.innerText = data.now_playing.song.title || '—';
                 songArtistEl.innerText = data.now_playing.song.artist || '—';
@@ -170,119 +101,170 @@
                 songTitleEl.innerText = 'Ожидание трека';
                 songArtistEl.innerText = '';
             }
-            if (data.live?.is_live && data.live.streamer_name) liveBadge.innerHTML = `🔴 ПРЯМОЙ ЭФИР: ${data.live.streamer_name}`;
-            else liveBadge.innerHTML = '🎛 Автодиджей';
         } catch(e) {
             console.warn('API error', e);
-            songTitleEl.innerText = '⚠️ Ошибка API';
+            songTitleEl.innerText = '⚠️ Ошибка получения данных';
         }
     }
-    setInterval(fetchNowPlaying, 12000);
+    setInterval(fetchNowPlaying, 10000);
     fetchNowPlaying();
 
-    // === РЕАЛЬНЫЙ ВИЗУАЛИЗАТОР (если бы captureStream работал) ===
-    // не используется, но оставлен для понимания
 
-    // === ПСЕВДО-ВИЗУАЛИЗАТОР (случайные столбцы) ===
-    function startFakeVisualizer() {
-        const bufferLength = 64;  // количество полос
-        let time = 0;
-        function drawFake() {
-            if (!isPlaying) {
+    // === 1. Функция загрузки и декодирования ===
+    // Загружаем первые 2MB для быстрого старта
+    async function fetchAndDecodeAudio() {
+        audioStatusSpan.innerText = '📡 Загрузка потока...';
+        try {
+            // Запрашиваем первые 2 мегабайта файла
+            const response = await fetch(CONFIG.streamUrl, {
+                headers: { 'Range': 'bytes=0-2000000' }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const arrayBuffer = await response.arrayBuffer();
+            audioStatusSpan.innerText = '🎛 Декодирование аудио...';
+            
+            // Создаем контекст, если его нет
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            // Декодируем MP3 в PCM данные
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            return audioBuffer;
+        } catch (error) {
+            console.error('Ошибка загрузки:', error);
+            audioStatusSpan.innerText = '❌ Ошибка загрузки/декодирования';
+            throw error;
+        }
+    }
+
+    // === 2. Функция запуска визуализации ===
+    function startVisualizerFromBuffer(audioBuffer) {
+        if (!audioContext) return;
+        
+        // Останавливаем старые ноды
+        if (currentSource) {
+            try { currentSource.stop(); currentSource.disconnect(); } catch(e) {}
+        }
+        if (animationId) cancelAnimationFrame(animationId);
+
+        // Создаем источник для нового буфера
+        currentSource = audioContext.createBufferSource();
+        currentSource.buffer = audioBuffer;
+        currentSource.loop = true; // Зацикливаем для непрерывности
+        currentSource.loopStart = 0;
+        // Устанавливаем длительность цикла (можно динамически, но пока как есть)
+        currentSource.loopEnd = audioBuffer.duration; 
+        
+        // Создаем анализатор
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        // Подключаем: Источник -> Анализатор -> Колонки
+        currentSource.connect(analyser);
+        analyser.connect(audioContext.destination);
+        
+        // Запускаем воспроизведение
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().then(() => {
+                currentSource.start(0);
+                isPlaying = true;
+                audioStatusSpan.innerText = '🎵 Эфир играет + LIVE спектр!';
+            }).catch(e => console.error(e));
+        } else {
+            currentSource.start(0);
+            isPlaying = true;
+            audioStatusSpan.innerText = '🎵 Эфир играет + LIVE спектр!';
+        }
+
+        // Canvas анимация
+        function drawVisualizer() {
+            if (!isPlaying || !analyser) {
                 if (animationId) cancelAnimationFrame(animationId);
-                animationId = null;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#01040b';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#2d5980';
-                ctx.font = '12px monospace';
-                ctx.fillText('⏸ Спектр остановлен', canvas.width/2-80, canvas.height/2);
                 return;
             }
-            animationId = requestAnimationFrame(drawFake);
-            // генерируем плавно меняющиеся случайные значения
-            time += 0.05;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            animationId = requestAnimationFrame(drawVisualizer);
+            analyser.getByteFrequencyData(dataArray);
+            
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
             const barWidth = (canvas.width / bufferLength) * 1.5;
             let x = 0;
             for (let i = 0; i < bufferLength; i++) {
-                // используем синус от времени + шум, чтобы столбцы двигались органично
-                let val = 0.5 + 0.4 * Math.sin(time + i * 0.3) + 0.2 * Math.sin(time * 2.3 + i * 0.7);
-                val = Math.min(0.95, Math.max(0.1, val));
-                const percent = val;
-                const barHeight = percent * canvas.height * 0.85;
+                const percent = dataArray[i] / 255;
+                const barHeight = (percent * canvas.height) * 0.85;
                 const hue = 200 + percent * 120;
-                ctx.fillStyle = `hsl(${hue}, 85%, 60%)`;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+                canvasCtx.fillStyle = `hsl(${hue}, 85%, 60%)`;
+                canvasCtx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
                 x += barWidth;
             }
         }
-        drawFake();
+        drawVisualizer();
     }
 
-    // === ОБЫЧНОЕ ВОСПРОИЗВЕДЕНИЕ (без CORS, только звук) ===
-    async function startPlayback() {
-        if (audioElement && isPlaying) return;
-        if (audioElement) {
-            audioElement.pause();
-            audioElement.src = '';
-        }
-        audioElement = new Audio();
-        audioElement.src = CONFIG.streamUrl;
-        audioElement.autoplay = true;
-        // не ставим crossOrigin - пусть просто играет
-
+    // === 3. Основной цикл обновления ===
+    let isUpdating = false;
+    async function updateStreamQueue() {
+        if (isUpdating) return;
+        isUpdating = true;
         try {
-            await audioElement.play();
-            isPlaying = true;
-            audioStatusSpan.innerText = '🎶 Статус: Играет (визуализация в демо-режиме)';
-            fetchNowPlaying();
-
-            // Проверяем поддержку captureStream
-            if (typeof audioElement.captureStream === 'function') {
-                // Пытаемся использовать реальный визуализатор (не случится, но пусть)
-                audioStatusSpan.innerText = '🎶 Статус: Играет + реальный спектр (beta)';
-                // в реальности на iOS этот код не выполнится, т.к. captureStream нет
-                fakeMode = false;
-                startFakeVisualizer(); // всё равно фейк, т.к. реальный потребовал бы CORS и MediaElementSource
+            // 1. Загружаем и декодируем новые данные
+            const newBuffer = await fetchAndDecodeAudio();
+            // 2. Если есть текущий буфер, сохраняем его для плавного перехода
+            if (currentFetchedBuffer) {
+                // Можно сделать кроссфейд, но для простоты просто отпускаем
+            }
+            currentFetchedBuffer = newBuffer;
+            // 3. Если сейчас ничего не играет (или первая загрузка), запускаем визуализатор
+            if (!isPlaying || !currentSource) {
+                startVisualizerFromBuffer(currentFetchedBuffer);
             } else {
-                // captureStream не поддерживается, используем псевдо-визуализатор
-                fakeMode = true;
-                startFakeVisualizer();
-                audioStatusSpan.innerText = '🎶 Статус: Играет + демо-визуализация';
+                // Если уже играет, можно обновить буфер в источнике (требует пересоздания источника)
+                // Для стабильности лучше перезапустить визуализатор с новым буфером
+                console.log('Обновление буфера...');
+                startVisualizerFromBuffer(currentFetchedBuffer);
             }
         } catch (err) {
-            console.error('Ошибка воспроизведения:', err);
-            audioStatusSpan.innerText = '❌ Ошибка: не удалось запустить аудио';
-            isPlaying = false;
+            console.error('Update failed', err);
+        } finally {
+            isUpdating = false;
         }
+    }
+
+    // === 4. Кнопки Старт/Стоп ===
+    async function startPlayback() {
+        if (isPlaying) return;
+        await updateStreamQueue();
+        // Запускаем обновление каждые 30 секунд
+        if (window.updateInterval) clearInterval(window.updateInterval);
+        window.updateInterval = setInterval(updateStreamQueue, 30000);
     }
 
     function stopPlayback() {
         isPlaying = false;
-        if (audioElement) {
-            audioElement.pause();
-            audioElement.src = '';
+        if (currentSource) {
+            try { currentSource.stop(); currentSource.disconnect(); } catch(e) {}
+            currentSource = null;
         }
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-            animationId = null;
-        }
-        audioStatusSpan.innerText = '⏹ Статус: Остановлен';
-        // очищаем canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#01040b';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#3c6b92';
-        ctx.font = '14px monospace';
-        ctx.fillText('Спектр остановлен', canvas.width/2-80, canvas.height/2);
+        if (window.updateInterval) clearInterval(window.updateInterval);
+        if (animationId) cancelAnimationFrame(animationId);
+        audioStatusSpan.innerText = '⏹ Остановлен';
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        canvasCtx.fillStyle = '#01040b';
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        canvasCtx.fillStyle = '#3c6b92';
+        canvasCtx.font = '14px monospace';
+        canvasCtx.fillText('Спектр остановлен', canvas.width/2-90, canvas.height/2);
     }
 
-    document.getElementById('playBtn').onclick = () => startPlayback();
-    document.getElementById('stopBtn').onclick = () => stopPlayback();
-
+    document.getElementById('playBtn').onclick = startPlayback;
+    document.getElementById('stopBtn').onclick = stopPlayback;
+    
     window.addEventListener('beforeunload', () => {
-        if (audioElement) audioElement.pause();
+        if (audioContext) audioContext.close();
     });
 </script>
 </body>
