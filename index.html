@@ -72,8 +72,8 @@
         .cover-art.playing { animation: pulse-slow 6s ease-in-out infinite; }
         .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
-
-        /* 🔥 Визуализатор на основе wavesurfer.js */
+        
+        /* 🔥 CONSTELLATION VISUALIZER */
         .viz-container {
             position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 50%;
             pointer-events: none; opacity: 0; transition: opacity 0.4s ease;
@@ -90,13 +90,13 @@
         .track-title.placeholder { opacity: 0.5; }
         .track-artist { font-size: 17px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
         .track-artist.placeholder { opacity: 0.5; }
-
+        
         .progress-container { width: 100%; margin-bottom: 24px; min-height: 36px; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
         .progress-container.active { opacity: 1; visibility: visible; }
         .progress-bar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; position: relative; cursor: default; }
         .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); border-radius: 2px; transition: width 0.3s ease; }
         .progress-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 500; }
-
+        
         .controls { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 32px; }
         .control-btn {
             width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
@@ -107,6 +107,7 @@
         .control-btn svg { width: 20px; height: 20px; fill: currentColor; transition: transform 0.2s; }
         .control-btn:hover { background: var(--btn-glass-hover); transform: translateY(-2px); }
         .control-btn:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.2); }
+        .control-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .play-btn {
             width: 76px; height: 76px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8));
@@ -265,54 +266,284 @@
         </div>
     </div>
 
-    <!-- 🔥 Используем wavesurfer.js для совместимости с iOS -->
-    <script src="https://unpkg.com/wavesurfer.js@7.10.1/dist/wavesurfer.js"></script>
-    <script src="https://unpkg.com/wavesurfer.js@7.10.1/dist/plugin/wavesurfer.spectrogram.js"></script>
+    <!-- 🔥 crossorigin="anonymous" КРИТИЧЕН для визуализатора -->
+    <audio id="audio-player" playsinline crossorigin="anonymous"></audio>
+    
     <script>
-        // ===============================\n        // 🔧 BUILT-IN DEBUG INSPECTOR\n        // ===============================\n        const Debug = {\n            logs: [], max: 200,\n            original: { log: console.log, warn: console.warn, error: console.error },\n            \n            init() {\n                ['log','warn','error'].forEach(type => {\n                    console[type] = (...args) => {\n                        this.add(type, args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));\n                        this.original[type].apply(console, args);\n                    };\n                });\n                this.setupUI();\n                this.log('info', '🔧 Debug panel initialized');\n                this.updateAudioState();\n                setInterval(() => this.updateAudioState(), 2000);\n            },\n            \n            add(type, message) {\n                const time = new Date().toISOString().substring(11, 19);\n                this.logs.unshift({ time, type, message });\n                if (this.logs.length > this.max) this.logs.pop();\n                this.render();\n            },\n            \n            log(type, message) { this.add(type, message); },\n            \n            render() {\n                const el = document.getElementById('debug-logs');\n                if (!el) return;\n                el.innerHTML = this.logs.map(l => \n                    `<div class="debug-entry ${l.type}"><span class="time">[${l.time}]</span> <span>${l.message}</span></div>`\n                ).join('');\n            },\n            \n            updateAudioState() {\n                const el = document.getElementById('audio-state');\n                if (!el || !audio) return;\n                const err = audio.error;\n                const states = {\n                    network: ['(none)','LOADING(meta)','LOADING','LOADED','ERROR'],\n                    ready: ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA']\n                };\n                el.innerHTML = `\n                    <div class="debug-row"><span class="debug-label">src</span><span class="debug-value">${audio.src ? audio.src.substring(0,40)+'...' : '—'}</span></div>\n                    <div class="debug-row"><span class="debug-label">networkState</span><span class="debug-value ${audio.networkState===3?'error':audio.networkState===2?'warn':'ok'}">${audio.networkState} (${states.network[audio.networkState]||'?'})</span></div>\n                    <div class="debug-row"><span class="debug-label">readyState</span><span class="debug-value ${audio.readyState===0?'warn':'ok'}">${audio.readyState} (${states.ready[audio.readyState]||'?'})</span></div>\n                    <div class="debug-row"><span class="debug-label">paused</span><span class="debug-value">${audio.paused?'✅':'❌'}</span></div>\n                    <div class="debug-row"><span class="debug-label">currentTime</span><span class="debug-value">${audio.currentTime.toFixed(2)}s</span></div>\n                    <div class="debug-row"><span class="debug-label">error</span><span class="debug-value ${err?'error':'ok'}">${err?`code:${err.code} ${['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err.code]||'?'}`:'none'}</span></div>\n                `;\n            },\n            \n            setupUI() {\n                const toggle = document.getElementById('debug-toggle');\n                const panel = document.getElementById('debug-panel');\n                const close = document.getElementById('debug-close');\n                const copyBtn = document.getElementById('debug-copy');\n                const testInternet = document.getElementById('test-internet');\n                const testCors = document.getElementById('test-cors');\n                const testAudio = document.getElementById('test-audio');\n                const result = document.getElementById('test-result');\n                \n                toggle?.addEventListener('click', () => panel.classList.add('open'));\n                close?.addEventListener('click', () => panel.classList.remove('open'));\n                \n                copyBtn?.addEventListener('click', async () => {\n                    const text = this.logs.map(l => `[${l.time}] ${l.type.toUpperCase()}: ${l.message}`).join('\\n');\n                    const audioState = document.getElementById('audio-state')?.innerText || '';\n                    try {\n                        await navigator.clipboard.writeText(`=== MAJESTIC RADIO DEBUG ===\\n${text}\\n\\n=== AUDIO STATE ===\\n${audioState}`);\n                        copyBtn.textContent = '✅ Скопировано';\n                        setTimeout(() => copyBtn.textContent = '📋 Копировать', 2000);\n                    } catch {\n                        copyBtn.textContent = '❌ Ошибка';\n                    }\n                });\n                \n                testInternet?.addEventListener('click', async () => {\n                    result.className = 'debug-test-result';\n                    result.textContent = '🌐 Проверка...';\n                    try {\n                        const start = Date.now();\n                        await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });\n                        const ms = Date.now() - start;\n                        result.className = 'debug-test-result ok';\n                        result.textContent = `✅ Интернет работает (${ms}ms)`;\n                        this.log('success', `Internet test OK (${ms}ms)`);\n                    } catch (e) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = `❌ Нет интернета: ${e.name}`;\n                        this.log('error', `Internet test FAILED: ${e.name}`);\n                    }\n                });\n                \n                testCors?.addEventListener('click', async () => {\n                    if (!currentStationKey || !stations[currentStationKey]) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = '❌ Выберите станцию';\n                        return;\n                    }\n                    result.className = 'debug-test-result';\n                    result.textContent = '🔐 Проверка CORS...';\n                    try {\n                        const url = stations[currentStationKey].stream;\n                        const resp = await fetch(url, { method: 'OPTIONS', headers: { 'Origin': location.origin, 'Access-Control-Request-Method': 'GET' }});\n                        const cors = resp.headers.get('access-control-allow-origin');\n                        if (cors) {\n                            result.className = 'debug-test-result ok';\n                            result.textContent = `✅ CORS разрешён: ${cors}`;\n                            this.log('success', `CORS test OK: ${cors}`);\n                        } else {\n                            result.className = 'debug-test-result err';\n                            result.textContent = `❌ CORS не настроен`; \n                            this.log('error', 'CORS test FAILED: no header');\n                        }\n                    } catch (e) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = `❌ Ошибка: ${e.message}`;\n                        this.log('error', `CORS test error: ${e.message}`);\n                    }\n                });\n                \n                testAudio?.addEventListener('click', async () => {\n                    if (!currentStationKey || !stations[currentStationKey]) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = '❌ Выберите станцию';\n                        return;\n                    }\n                    result.className = 'debug-test-result';\n                    result.textContent = '🔊 Тест аудио...';\n                    try {\n                        const testAudio = new Audio();\n                        testAudio.crossOrigin = 'anonymous';\n                        testAudio.preload = 'metadata';\n                        const url = stations[currentStationKey].stream + '?test=' + Date.now();\n                        testAudio.src = url;\n                        const start = Date.now();\n                        await new Promise((resolve, reject) => {\n                            const timer = setTimeout(() => reject(new Error('Timeout')), 5000);\n                            testAudio.oncanplay = () => { clearTimeout(timer); resolve(); };\n                            testAudio.onerror = () => { clearTimeout(timer); reject(testAudio.error || new Error('Load failed')); };\n                        });\n                        const ms = Date.now() - start;\n                        result.className = 'debug-test-result ok';\n                        result.textContent = `✅ Поток доступен (${ms}ms)`;\n                        this.log('success', `Audio test OK (${ms}ms)`);\n                    } catch (e) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = `❌ Ошибка: ${e.message}`;\n                        this.log('error', `Audio test FAILED: ${e.message}`);\n                    }\n                });\n            }\n        };
+        // ===============================\n        // 🔧 BUILT-IN DEBUG INSPECTOR\n        // ===============================\n        const Debug = {\n            logs: [], max: 200,\n            original: { log: console.log, warn: console.warn, error: console.error },\n            \n            init() {\n                [\'log\',\'warn\',\'error\'].forEach(type => {\n                    console[type] = (...args) => {\n                        this.add(type, args.map(a => typeof a === \'object\' ? JSON.stringify(a) : String(a)).join(\' \'));\n                        this.original[type].apply(console, args);\n                    };\n                });\n                this.setupUI();\n                this.log(\'info\', \'🔧 Debug panel initialized\');\n                this.updateAudioState();\n                this.updateWAAState();\n                setInterval(() => this.updateAudioState(), 2000);\n            },\n            \n            add(type, message) {\n                const time = new Date().toISOString().substring(11, 19);\n                this.logs.unshift({ time, type, message });\n                if (this.logs.length > this.max) this.logs.pop();\n                this.render();\n            },\n            \n            log(type, message) { this.add(type, message); },\n            \n            render() {\n                const el = document.getElementById(\'debug-logs\');\n                if (!el) return;\n                el.innerHTML = this.logs.map(l => \n                    `<div class="debug-entry ${l.type}"><span class="time">[${l.time}]</span> <span>${l.message}</span></div>`\n                ).join(\'\');\n            },\n            \n            updateAudioState() {\n                const el = document.getElementById(\'audio-state\');\n                if (!el || !audio) return;\n                const err = audio.error;\n                const states = {\n                    network: [\'(none)\',\'LOADING(meta)\',\'LOADING\',\'LOADED\',\'ERROR\'],\n                    ready: [\'HAVE_NOTHING\',\'HAVE_METADATA\',\'HAVE_CURRENT_DATA\',\'HAVE_FUTURE_DATA\',\'HAVE_ENOUGH_DATA\']\n                };\n                el.innerHTML = `\n                    <div class="debug-row"><span class="debug-label">src</span><span class="debug-value">${audio.src ? audio.src.substring(0,40)+\'...\' : \'—\'}</span></div>\n                    <div class="debug-row"><span class="debug-label">networkState</span><span class="debug-value ${audio.networkState===3?\'error\':audio.networkState===2?\'warn\':\'ok\'}">${audio.networkState} (${states.network[audio.networkState]||\'?\'})</span></div>\n                    <div class="debug-row"><span class="debug-label">readyState</span><span class="debug-value ${audio.readyState===0?\'warn\':\'ok\'}">${audio.readyState} (${states.ready[audio.readyState]||\'?\'})</span></div>\n                    <div class="debug-row"><span class="debug-label">paused</span><span class="debug-value">${audio.paused?\'✅\':\'❌\'}</span></div>\n                    <div class="debug-row"><span class="debug-label">currentTime</span><span class="debug-value">${audio.currentTime.toFixed(2)}s</span></div>\n                    <div class="debug-row"><span class="debug-label">error</span><span class="debug-value ${err?\'error\':\'ok\'}">${err?`code:${err.code} ${[\'\',\'ABORTED\',\'NETWORK\',\'DECODE\',\'SRC_NOT_SUPPORTED\'][err.code]||\'?\'}`:\'none\'}</span></div>\n                `;\n            },\n            \n            updateWAAState() {\n                const el = document.getElementById(\'waa-state\');\n                if (!el) return;\n                const ctx = ConstellationViz.audioCtx;\n                el.innerHTML = `\n                    <div class="debug-row"><span class="debug-label">AudioContext</span><span class="debug-value ${ctx?\'ok\':\'error\'}">${ctx?ctx.state:\'not created\'}</span></div>\n                    <div class="debug-row"><span class="debug-label">Analyser</span><span class="debug-value ${ConstellationViz.analyser?\'ok\':\'error\'}">${ConstellationViz.analyser?\'connected\':\'—\'}</span></div>\n                    <div class="debug-row"><span class="debug-label">SampleRate</span><span class="debug-value">${ctx?ctx.sampleRate+\'Hz\':\'—\'}</span></div>\n                `;\n            },\n            \n            setupUI() {\n                const toggle = document.getElementById(\'debug-toggle\');\n                const panel = document.getElementById(\'debug-panel\');\n                const close = document.getElementById(\'debug-close\');\n                const copyBtn = document.getElementById(\'debug-copy\');\n                const testInternet = document.getElementById(\'test-internet\');\n                const testCors = document.getElementById(\'test-cors\');\n                const testAudio = document.getElementById(\'test-audio\');\n                const result = document.getElementById(\'test-result\');\n                \n                toggle?.addEventListener(\'click\', () => {\n                    panel.classList.add(\'open\');\n                    this.updateAudioState();\n                    this.updateWAAState();\n                });\n                close?.addEventListener(\'click\', () => panel.classList.remove(\'open\'));\n                \n                copyBtn?.addEventListener(\'click\', async () => {\n                    const text = this.logs.map(l => `[${l.time}] ${l.type.toUpperCase()}: ${l.message}`).join(\'\\n\');\n                    const audioState = document.getElementById(\'audio-state\')?.innerText || \'\';\n                    const waaState = document.getElementById(\'waa-state\')?.innerText || \'\';\n                    try {\n                        await navigator.clipboard.writeText(`=== MAJESTIC RADIO DEBUG ===\\n${text}\\n\\n=== AUDIO STATE ===\\n${audioState}\\n\\n=== WEB AUDIO API ===\\n${waaState}`);\n                        copyBtn.textContent = \'✅ Скопировано\';\n                        setTimeout(() => copyBtn.textContent = \'📋 Копировать\', 2000);\n                    } catch {\n                        copyBtn.textContent = \'❌ Ошибка\';\n                    }\n                });\n                \n                testInternet?.addEventListener(\'click\', async () => {\n                    result.className = \'debug-test-result\';\n                    result.textContent = \'🌐 Проверка...\';\n                    try {\n                        const start = Date.now();\n                        await fetch(\'https://www.google.com/favicon.ico\', { mode: \'no-cors\', cache: \'no-store\' });\n                        const ms = Date.now() - start;\n                        result.className = \'debug-test-result ok\';\n                        result.textContent = `✅ Интернет работает (${ms}ms)`;\n                        this.log(\'success\', `Internet test OK (${ms}ms)`);\n                    } catch (e) {\n                        result.className = \'debug-test-result err\';\n                        result.textContent = `❌ Нет интернета: ${e.name}`;\n                        this.log(\'error\', `Internet test FAILED: ${e.name}`);\n                    }\n                });\n                \n                testCors?.addEventListener(\'click\', async () => {\n                    if (!currentStationKey || !stations[currentStationKey]) {\n                        result.className = \'debug-test-result err\';\n                        result.textContent = \'❌ Выберите станцию\';\n                        return;\n                    }\n                    result.className = \'debug-test-result\';\n                    result.textContent = \'🔐 Проверка CORS...\';\n                    try {\n                        const url = stations[currentStationKey].stream;\n                        const resp = await fetch(url, { method: \'OPTIONS\', headers: { \'Origin\': location.origin, \'Access-Control-Request-Method\': \'GET\' }});\n                        const cors = resp.headers.get(\'access-control-allow-origin\');\n                        if (cors) {\n                            result.className = \'debug-test-result ok\';\n                            result.textContent = `✅ CORS разрешён: ${cors}`;\n                            this.log(\'success\', `CORS test OK: ${cors}`);\n                        } else {\n                            result.className = \'debug-test-result err\';\n                            result.textContent = `❌ CORS не настроен (Нет заголовка)`;\n                            this.log(\'error\', \'CORS test FAILED: no header\');\n                        }\n                    } catch (e) {\n                        result.className = \'debug-test-result err\';\n                        result.textContent = `❌ Ошибка: ${e.message}`;\n                        this.log(\'error\', `CORS test error: ${e.message}`);\n                    }\n                });\n                \n                testAudio?.addEventListener(\'click\', async () => {\n                    if (!currentStationKey || !stations[currentStationKey]) {\n                        result.className = \'debug-test-result err\';\n                        result.textContent = \'❌ Выберите станцию\';\n                        return;\n                    }\n                    result.className = \'debug-test-result\';\n                    result.textContent = \'🔊 Тест аудио...\';\n                    try {\n                        const testAudio = new Audio();\n                        testAudio.crossOrigin = \'anonymous\';\n                        testAudio.preload = \'none\';\n                        const url = stations[currentStationKey].stream + \'?test=\' + Date.now();\n                        testAudio.src = url;\n                        const start = Date.now();\n                        await new Promise((resolve, reject) => {\n                            const timer = setTimeout(() => reject(new Error(\'Timeout\')), 5000);\n                            testAudio.oncanplay = () => { clearTimeout(timer); resolve(); };\n                            testAudio.onerror = () => { clearTimeout(timer); reject(testAudio.error || new Error(\'Load failed\')); };\n                        });\n                        const ms = Date.now() - start;\n                        result.className = \'debug-test-result ok\';\n                        result.textContent = `✅ Поток доступен (${ms}ms)`;\n                        this.log(\'success\', `Audio test OK (${ms}ms)`);\n                    } catch (e) {\n                        result.className = \'debug-test-result err\';\n                        result.textContent = `❌ Ошибка: ${e.message}`;\n                        this.log(\'error\', `Audio test FAILED: ${e.message}`);\n                    }\n                });\n            }\n        };
 
-        // ===============================\n        // 🎨 CONSTELLATION VISUALIZER (заменён на wavesurfer)\n        // ===============================\n        let wavesurfer = null;\n        let vizCanvas = null;\n        \n        function initWavesurfer() {\n            if (wavesurfer) return;\n            \n            vizCanvas = document.getElementById('viz-canvas');\n            \n            // Инициализация wavesurfer\n            wavesurfer = WaveSurfer.create({\n                container: '#viz-canvas',\n                waveColor: 'rgba(255, 255, 255, 0.7)',\n                progressColor: 'rgba(124, 58, 237, 0.8)',\n                cursorColor: 'rgba(124, 58, 237, 0.8)',\n                barWidth: 2,\n                barGap: 1,\n                barRadius: 2,\n                responsive: true,\n                height: 200,\n                normalize: true,\n                partialRender: true,\n                plugins: [\n                    WaveSurfer.Spectrogram.create({\n                        container: '#viz-canvas',\n                        labels: false,\n                        fftSamples: 2048,\n                        splitChannels: false,\n                        barHeight: 2,\n                        barGap: 1,\n                        colorMap: [\n                            [0, '#7c3aed'],\n                            [0.5, '#a78bfa'],\n                            [1, '#ffffff']\n                        ]\n                    })\n                ]\n            });\n            \n            // Настройка для потокового воспроизведения\n            wavesurfer.once('ready', () => {\n                Debug.log('success', '✅ Wavesurfer ready');\n                document.getElementById('viz-container').classList.add('active');\n            });\n            \n            wavesurfer.on('error', (e) => {\n                Debug.log('error', `❌ Wavesurfer error: ${e}`);\n            });\n            \n            wavesurfer.on('finish', () => {\n                Debug.log('info', '⏹ Playback finished');\n                document.getElementById('viz-container').classList.remove('active');\n            });\n            \n            Debug.log('info', '🌊 Wavesurfer initialized');\n        }
+        // ===============================\n        // 🎨 CONSTELLATION VISUALIZER\n        // ===============================\n        const ConstellationViz = {\n            audioCtx: null, analyser: null, sourceNode: null, freqData: null,\n            vizAnimId: null, isRunning: false, silentFrames: 0,\n            CONFIG: { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.75, BASE_Y: 0.85 },\n            nodes: [],\n            \n            init(audioElement) {\n                if (this.audioCtx) return true;\n                try {\n                    const AudioContext = window.AudioContext || window.webkitAudioContext;\n                    this.audioCtx = new AudioContext();\n                    this.analyser = this.audioCtx.createAnalyser();\n                    this.analyser.fftSize = this.CONFIG.FFT_SIZE;\n                    this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;\n                    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);\n                    \n                    // Подключаем MediaElementSource\n                    this.sourceNode = this.audioCtx.createMediaElementSource(audioElement);\n                    this.sourceNode.connect(this.analyser);\n                    this.analyser.connect(this.audioCtx.destination);\n                    \n                    this.nodes = Array.from({length: this.CONFIG.NUM_NODES}, () => ({x:0,y:0,energy:0,targetY:0}));\n                    Debug.log(\'success\', \'✅ ConstellationViz initialized\');\n                    return true;\n                } catch (e) { \n                    Debug.log(\'error\', \'❌ ConstellationViz init failed: \' + e.message); \n                    return false; \n                }\n            },\n            \n            draw() {\n                const canvas = document.getElementById(\'viz-canvas\');\n                if (!canvas) return;\n                const ctx = this.ctx || canvas.getContext(\'2d\'); this.ctx = ctx;\n                const dpr = window.devicePixelRatio || 1;\n                const rect = canvas.getBoundingClientRect();\n                canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;\n                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);\n                const w = rect.width, h = rect.height;\n                ctx.clearRect(0, 0, w, h);\n                \n                if (!this.analyser || !this.freqData) { \n                    this.vizAnimId = requestAnimationFrame(() => this.draw()); \n                    return; \n                }\n                \n                // Получаем данные\n                this.analyser.getByteFrequencyData(this.freqData);\n                \n                // Проверка на тишину\n                let maxVal = 0;\n                for(let i=0; i<this.freqData.length; i++) if(this.freqData[i] > maxVal) maxVal = this.freqData[i];\n                if (maxVal === 0) {\n                    this.silentFrames++;\n                    if (this.silentFrames === 60) {\n                        Debug.log(\'warn\', \'⚠️ Viz sees silence (0). Check CORS or stream format.\');\n                    }\n                } else {\n                    this.silentFrames = 0;\n                }\n\n                const binWidth = this.audioCtx.sampleRate / this.analyser.fftSize;\n                const maxFreqBin = Math.min(this.freqData.length - 1, Math.floor(this.CONFIG.MAX_FREQ / binWidth));\n                \n                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {\n                    const ratio = i / (this.CONFIG.NUM_NODES - 1);\n                    const bin = Math.max(0, Math.floor(ratio * maxFreqBin));\n                    const val = this.freqData[bin] / 255;\n                    this.nodes[i].x = ratio * w;\n                    this.nodes[i].targetY = h * this.CONFIG.BASE_Y - (val * h * this.CONFIG.NODE_HEIGHT);\n                    this.nodes[i].y += (this.nodes[i].targetY - this.nodes[i].y) * 0.15;\n                    this.nodes[i].energy = val;\n                }\n                \n                ctx.lineWidth = 0.8;\n                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {\n                    for (let j = i + 1; j < this.CONFIG.NUM_NODES; j++) {\n                        const dx = this.nodes[i].x - this.nodes[j].x, dy = this.nodes[i].y - this.nodes[j].y;\n                        const distSq = dx*dx + dy*dy;\n                        if (distSq < this.CONFIG.CONN_DISTANCE ** 2) {\n                            const dist = Math.sqrt(distSq);\n                            ctx.strokeStyle = `rgba(180,160,255,${Math.max(0, (1-dist/this.CONFIG.CONN_DISTANCE)*0.35*(0.4+this.nodes[i].energy+this.nodes[j].energy))})`;\n                            ctx.beginPath(); ctx.moveTo(this.nodes[i].x, this.nodes[i].y); ctx.lineTo(this.nodes[j].x, this.nodes[j].y); ctx.stroke();\n                        }\n                    }\n                }\n                for (let i = 0; i < this.CONFIG.NUM_NODES; i++) {\n                    const n = this.nodes[i];\n                    ctx.shadowColor = `rgba(167,139,250,${n.energy*0.6})`; ctx.shadowBlur = 6;\n                    ctx.fillStyle = `rgba(255,255,255,${0.4+n.energy*0.6})`;\n                    ctx.beginPath(); ctx.arc(n.x, n.y, 1.2+n.energy*3.5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;\n                }\n                this.vizAnimId = requestAnimationFrame(() => this.draw());\n            },\n            \n            start() {\n                document.getElementById(\'viz-container\').classList.add(\'active\');\n                if (!this.isRunning) { \n                    this.isRunning = true; \n                    this.silentFrames = 0;\n                    cancelAnimationFrame(this.vizAnimId); \n                    this.draw(); \n                }\n            },\n            stop() {\n                document.getElementById(\'viz-container\').classList.remove(\'active\');\n                this.isRunning = false; cancelAnimationFrame(this.vizAnimId);\n                if (this.ctx) { const c = document.getElementById(\'viz-canvas\'); const r = c.getBoundingClientRect(); this.ctx.clearRect(0,0,r.width,r.height); }\n            },\n            cleanup() {\n                this.stop();\n                if (this.sourceNode) { try { this.sourceNode.disconnect(); } catch(e) {} this.sourceNode = null; }\n                if (this.analyser) { try { this.analyser.disconnect(); } catch(e) {} this.analyser = null; }\n                if (this.audioCtx && this.audioCtx.state !== \'closed\') { this.audioCtx.close().catch(()=>{}); this.audioCtx = null; }\n            }\n        };
 
-        // ===============================\n        // 📻 RADIO APP\n        // ===============================\n        const STREAM_URLS = {\n            liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',\n            drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',\n            psy_chill: 'https://majesticradio.duckdns.org/listen/psy_chill/psychill.mp3',\n            old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',\n            progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',\n            psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',\n            dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'\n        };\n        const BASE_URL = 'https://majesticradio.duckdns.org';\n        const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];\n        const STATION_NAMES = { liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill', old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room' };\n\n        const audio = document.getElementById('audio-player');\n        const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');\n        const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');\n        const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');\n        const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');\n        const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');\n        const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current');\n        const progressDuration = document.getElementById('progress-duration');\n        const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');\n\n        let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;\n        let metadataInterval = null, progressInterval = null, errorTimeout = null;\n        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;\n        let isProcessingPlay = false;\n        \n        const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
+        // ===============================\n        // 📻 RADIO APP\n        // ===============================\n        const STREAM_URLS = {\n            liquid_drum: \'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3\',\n            drum__bass: \'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3\',\n            psy_chill: \'https://majesticradio.duckdns.org/listen/psy_chill/psychill.mp3\',\n            old_goa: \'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3\',\n            progressive_psytrance: \'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3\',\n            psy_tech: \'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3\',\n            dark_room: \'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3\'\n        };\n        const BASE_URL = \'https://majesticradio.duckdns.org\';\n        const STATION_IDS = [\'liquid_drum\',\'drum__bass\',\'psy_chill\',\'old_goa\',\'progressive_psytrance\',\'psy_tech\',\'dark_room\'];\n        const STATION_NAMES = { liquid_drum: \'Liquid Drum\', drum__bass: \'Drum & Bass\', psy_chill: \'Psy Chill\', old_goa: \'Old Goa\', progressive_psytrance: \'Progressive Psy\', psy_tech: \'Psy Tech\', dark_room: \'Dark Room\' };
+
+        const audio = document.getElementById(\'audio-player\');\n        const playBtn = document.getElementById(\'play-btn\'), prevBtn = document.getElementById(\'prev-btn\'), nextBtn = document.getElementById(\'next-btn\');\n        const burgerBtn = document.getElementById(\'burger-btn\'), stationsOverlay = document.getElementById(\'stations-overlay\');\n        const stationsListEl = document.getElementById(\'stations-list\'), coverArt = document.getElementById(\'cover-art\');\n        const trackTitleEl = document.getElementById(\'track-title\'), trackArtistEl = document.getElementById(\'track-artist\');\n        const statusBadge = document.getElementById(\'status-badge\'), progressContainer = document.getElementById(\'progress-container\');\n        const progressFill = document.getElementById(\'progress-fill\'), progressCurrent = document.getElementById(\'progress-current\');\n        const progressDuration = document.getElementById(\'progress-duration\');\n        const playIcon = document.getElementById(\'play-icon\'), pauseIcon = document.getElementById(\'pause-icon\');
+
+        let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;\n        let metadataInterval = null, progressInterval = null, errorTimeout = null;\n        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;\n        let isProcessingPlay = false;\n        let playTimeout = null;\n        \n        const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
         function formatTime(s) { return (!s||s<0)?'0:00':`${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
         function updateProgress(el,dur) { if(!dur||dur<=0) return progressContainer.classList.remove('active'); progressContainer.classList.add('active'); progressFill.style.width=`${Math.min(100,(el/dur)*100)}%`; progressCurrent.textContent=formatTime(el); progressDuration.textContent=formatTime(dur); }
         function startProgressAnimation() { progressInterval&&clearInterval(progressInterval); progressInterval=setInterval(()=>{ if(!isPlaying||!trackData.duration)return; const el=trackData.elapsed+(Date.now()-trackData.lastUpdate)/1000; el<trackData.duration&&updateProgress(el,trackData.duration); },500); }
         function stopProgressAnimation() { progressInterval&&clearInterval(progressInterval); progressInterval=null; progressContainer.classList.remove('active'); }
-        function updateStatus(state, msg) {\n            statusBadge.classList.remove('online','error','loading');\n            if (state === 'online') { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; }\n            else if (state === 'loading') { statusBadge.classList.add('loading'); statusBadge.innerHTML = `<span>${msg||'Загрузка...'}</span>`; }\n            else { statusBadge.innerHTML = `<span>${msg||'Оффлайн'}</span>`; }\n        }
+        function updateStatus(state, msg) {
+            statusBadge.classList.remove('online','error','loading');
+            if (state === 'online') { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; }
+            else if (state === 'loading') { statusBadge.classList.add('loading'); statusBadge.innerHTML = `<span>${msg||'Загрузка...'}</span>`; }
+            else { statusBadge.innerHTML = `<span>${msg||'Оффлайн'}</span>`; }
+        }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function openStations() { stationsOpen=true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
         function closeStations() { stationsOpen=false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
         function toggleStations() { stationsOpen?closeStations():openStations(); }
-        function renderStationsList() {\n            if(!stationsListEl)return; stationsListEl.innerHTML='';\n            Object.keys(stations).forEach(k=>{\n                const b=document.createElement('button');\n                b.className=`station-item${k===currentStationKey?' active':''}`;\n                b.innerHTML=`<span class="station-dot"></span><span>${stations[k].name}</span>`;\n                b.onclick=()=>{switchStation(k,true);closeStations();};\n                stationsListEl.appendChild(b);\n            });\n        }
-        function initStationsStatic() {\n            stations={};\n            STATION_IDS.forEach(id=>stations[id]={name:STATION_NAMES[id]||id,stream:STREAM_URLS[id],api:`${BASE_URL}/api/nowplaying/${id}`,art:DEFAULT_COVER_SVG});\n            renderStationsList(); currentStationKey=STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG);\n        }
-        async function loadStationsBackground() {\n            await Promise.all(STATION_IDS.map(async id=>{\n                try{\n                    const c=new AbortController(),t=setTimeout(()=>c.abort(),3000);\n                    const r=await fetch(`${BASE_URL}/api/nowplaying/${id}`,{signal:c.signal}); clearTimeout(t);\n                    if(r.ok){\n                        const d=await r.json(); let a=DEFAULT_COVER_SVG;\n                        if(d.now_playing?.song?.art){a=d.now_playing.song.art;if(!a.startsWith('http'))a=BASE_URL+a;}\n                        else if(d.station?.front_art){a=d.station.front_art;if(!a.startsWith('http'))a=BASE_URL+a;}\n                        if(stations[id]){stations[id].name=d.station?.name||stations[id].name;stations[id].art=a;}\n                        if(id===currentStationKey)setCoverArt(a); renderStationsList();\n                    }\n                }catch(e){}\n            }));\n        }
-        function switchStation(key,autoPlay=true) {\n            if(!stations[key])return;\n            playbackStarted=false; currentStationKey=key; stopPlayback(); setCoverArt(stations[key].art); renderStationsList();\n            if(autoPlay)startPlayback(stations[key]);\n        }
-        function setCoverArt(url) {\n            if(!coverArt)return;\n            const img=new Image();\n            img.onload=()=>{coverArt.style.backgroundImage=`url('${url}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};\n            img.onerror=()=>{coverArt.style.backgroundImage=`url('${DEFAULT_COVER_SVG}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};\n            img.src=url||DEFAULT_COVER_SVG;\n        }
+        function renderStationsList() {
+            if(!stationsListEl)return; stationsListEl.innerHTML='';
+            Object.keys(stations).forEach(k=>{
+                const b=document.createElement('button');
+                b.className=`station-item${k===currentStationKey?' active':''}`;
+                b.innerHTML=`<span class="station-dot"></span><span>${stations[k].name}</span>`;
+                b.onclick=()=>{switchStation(k,true);closeStations();};
+                stationsListEl.appendChild(b);
+            });
+        }
+        function initStationsStatic() {
+            stations={};
+            STATION_IDS.forEach(id=>stations[id]={name:STATION_NAMES[id]||id,stream:STREAM_URLS[id],api:`${BASE_URL}/api/nowplaying/${id}`,art:DEFAULT_COVER_SVG});
+            renderStationsList(); currentStationKey=STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG);
+        }
+        async function loadStationsBackground() {
+            await Promise.all(STATION_IDS.map(async id=>{
+                try{
+                    const c=new AbortController(),t=setTimeout(()=>c.abort(),3000);
+                    const r=await fetch(`${BASE_URL}/api/nowplaying/${id}`,{signal:c.signal}); clearTimeout(t);
+                    if(r.ok){
+                        const d=await r.json(); let a=DEFAULT_COVER_SVG;
+                        if(d.now_playing?.song?.art){a=d.now_playing.song.art;if(!a.startsWith('http'))a=BASE_URL+a;}
+                        else if(d.station?.front_art){a=d.station.front_art;if(!a.startsWith('http'))a=BASE_URL+a;}
+                        if(stations[id]){stations[id].name=d.station?.name||stations[id].name;stations[id].art=a;}
+                        if(id===currentStationKey)setCoverArt(a); renderStationsList();
+                    }
+                }catch(e){}
+            }));
+        }
+        function switchStation(key,autoPlay=true) {
+            if(!stations[key])return;
+            playbackStarted=false; currentStationKey=key; stopPlayback(); setCoverArt(stations[key].art); renderStationsList();
+            if(autoPlay)startPlayback(stations[key]);
+        }
+        function setCoverArt(url) {
+            if(!coverArt)return;
+            const img=new Image();
+            img.onload=()=>{coverArt.style.backgroundImage=`url('${url}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};
+            img.onerror=()=>{coverArt.style.backgroundImage=`url('${DEFAULT_COVER_SVG}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};
+            img.src=url||DEFAULT_COVER_SVG;
+        }
 
-        // 🔥 ИНИЦИАЛИЗАЦИЯ ВИЗУАЛИЗАТОРА ПЕРЕД ВОСПРОИЗВЕДЕНИЕМ
-        function startVisualizer() {\n            if (!wavesurfer) {\n                initWavesurfer();\n                Debug.log('info', '🌊 Wavesurfer initialized for visualization');\n            }\n            // Передаём поток в wavesurfer\n            wavesurfer.load(currentStationKey ? stations[currentStationKey].stream : '');\n        }
-        function stopVisualizer() {\n            if (wavesurfer) {\n                wavesurfer.pause();\n                document.getElementById('viz-container').classList.remove('active');\n                Debug.log('info', '⏹ Wavesurfer visualization stopped');\n            }\n        }
+        function startVisualizer() {
+            const onCanPlayThrough = () => {
+                audio.removeEventListener('canplaythrough', onCanPlayThrough);
+                Debug.log('info', '🎧 Audio canplaythrough received');
+                
+                // Инициализируем AudioContext
+                if (!ConstellationViz.audioCtx) {
+                    if (ConstellationViz.init(audio)) {
+                        // Пытаемся разбудить AudioContext
+                        if (ConstellationViz.audioCtx.state === 'suspended') {
+                            ConstellationViz.audioCtx.resume()
+                                .then(() => {
+                                    Debug.log('success', '🎛️ AudioContext resumed');
+                                    ConstellationViz.start();
+                                })
+                                .catch(err => {
+                                    Debug.log('error', `❌ Failed to resume AudioContext: ${err.message}`);
+                                });
+                        } else {
+                            ConstellationViz.start();
+                        }
+                    }
+                } else {
+                    ConstellationViz.start();
+                }
+            };
+            // Слушаем самое надёжное событие для потоков
+            audio.addEventListener('canplaythrough', onCanPlayThrough, { once: true });
+        }
+        function stopVisualizer() { ConstellationViz.stop(); }
 
-        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK ДЛЯ iOS
-        function startPlayback(station) {\n            if (isProcessingPlay) return;\n            isProcessingPlay = true;\n            \n            Debug.log('info', `🎵 Start playback: ${station.name}`);\n            playbackStarted = false;\n            stopVisualizer();\n            updateStatus('loading', 'Подключение...');\n            \n            // Убираем всё, что может мешать: очистка предыдущих потоков\n            if (wavesurfer) {\n                wavesurfer.destroy();\n                wavesurfer = null;\n            }\n            \n            // Инициализируем визуализатор перед воспроизведением\n            startVisualizer();\n            \n            // Загружаем поток\n            wavesurfer.load(station.stream);\n            \n            // Запускаем воспроизведение\n            wavesurfer.once('ready', () => {\n                wavesurfer.play().then(() => {\n                    Debug.log('success', '✅ Playback started via wavesurfer');\n                    isPlaying = true;\n                    playbackStarted = true;\n                    updatePlayButton();\n                    updateStatus('online');\n                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);\n                    fetchMetadata(station.api);\n                    metadataInterval && clearInterval(metadataInterval);\n                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);\n                    isProcessingPlay = false;\n                }).catch(err => {\n                    Debug.log('error', `❌ Play failed: ${err.name} - ${err.message}`);\n                    updateStatus('error', err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения');\n                    isPlaying = false;\n                    playbackStarted = false;\n                    updatePlayButton();\n                    isProcessingPlay = false;\n                });\n            });\n            \n            // Защита от зависаний\n            errorTimeout = setTimeout(() => {\n                if (!isPlaying && wavesurfer && !wavesurfer.isReady) {\n                    Debug.log('warn', '⏱️ Wavesurfer timeout');\n                    updateStatus('error', 'Таймаут подключения');\n                    isProcessingPlay = false;\n                }\n            }, 10000);\n        }
+        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK
+        function startPlayback(station) {
+            if (isProcessingPlay) {
+                Debug.log('warn', '⚠️ Play already in progress, ignoring click');
+                return;
+            }
+            isProcessingPlay = true;
+            
+            if (playTimeout) clearTimeout(playTimeout);
+            
+            Debug.log('info', `🎵 Start playback: ${station.name}`);
+            playbackStarted = false;
+            ConstellationViz.stop();
+            updateStatus('loading', 'Подключение...');
+            
+            // Устанавливаем источник и сразу начинаем воспроизведение
+            audio.src = `${station.stream}?t=${Date.now()}`;
+            // Убран audio.load() — он не нужен для потокового воспроизведения
+            
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        Debug.log('success', '✅ Playback started');
+                        isPlaying = true; 
+                        playbackStarted = true;
+                        updatePlayButton();
+                        updateStatus('online');
+                        
+                        // Запускаем визуализатор после canplaythrough
+                        startVisualizer();
+                        
+                        errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                        fetchMetadata(station.api);
+                        metadataInterval && clearInterval(metadataInterval);
+                        metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
+                        
+                        setTimeout(() => { isProcessingPlay = false; }, 1000);
+                    })
+                    .catch(err => {
+                        Debug.log('error', `❌ Playback failed: ${err.name} - ${err.message}`);
+                        const msg = err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения';
+                        updateStatus('error', msg);
+                        isPlaying = false; 
+                        playbackStarted = false;
+                        updatePlayButton();
+                        stopVisualizer();
+                        isProcessingPlay = false;
+                    });
+            }
+            
+            // Таймаут на случай зависания
+            playTimeout = setTimeout(() => {
+                if (!isPlaying && !audio.paused) {
+                    Debug.log('warn', '⏱️ Play timeout reached, resetting');
+                    audio.pause();
+                    audio.src = '';
+                    updateStatus('error', 'Таймаут подключения');
+                    isProcessingPlay = false;
+                }
+            }, 10000);
+        }
 
-        function stopPlayback() {\n            if (errorTimeout) clearTimeout(errorTimeout);\n            if (wavesurfer) {\n                wavesurfer.pause();\n                wavesurfer.destroy();\n                wavesurfer = null;\n            }\n            audio.pause();\n            audio.src = '';\n            isPlaying = false;\n            playbackStarted = false;\n            updatePlayButton();\n            stopVisualizer();\n            stopProgressAnimation();\n            updateStatus('offline');\n            metadataInterval && clearInterval(metadataInterval);\n            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };\n        }
+        function stopPlayback() {
+            if (playTimeout) clearTimeout(playTimeout);
+            audio.pause(); 
+            audio.src = ''; 
+            isPlaying = false; 
+            playbackStarted = false;
+            updatePlayButton(); 
+            stopVisualizer(); 
+            stopProgressAnimation(); 
+            updateStatus('offline');
+            metadataInterval && clearInterval(metadataInterval);
+            errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
+            isProcessingPlay = false;
+        }
 
-        function togglePlay() {\n            if (!currentStationKey || !stations[currentStationKey]) return;\n            isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]);\n        }
-        \n        function updatePlayButton() {\n            playIcon.style.display = isPlaying ? 'none' : 'block';\n            pauseIcon.style.display = isPlaying ? 'block' : 'none';\n            coverArt.classList.toggle('playing', isPlaying);\n        }
+        function togglePlay() {
+            if (!currentStationKey || !stations[currentStationKey]) return;
+            isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]);
+        }
+        
+        function updatePlayButton() {
+            playIcon.style.display = isPlaying ? 'none' : 'block';
+            pauseIcon.style.display = isPlaying ? 'block' : 'none';
+            coverArt.classList.toggle('playing', isPlaying);
+        }
 
-        async function fetchMetadata(apiUrl) {\n            if (!isPlaying) return;\n            try {\n                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });\n                if (!response.ok) return;\n                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};\n                if (song) {\n                    trackTitleEl.textContent = song.title || 'Unknown Track';\n                    trackArtistEl.textContent = song.artist || 'Unknown Artist';\n                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');\n                    if (song.art?.trim()) { let artUrl = song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; setCoverArt(artUrl); }\n                }\n                if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }\n            } catch (e) { Debug.log('warn', 'Metadata fetch failed'); }\n        }
+        async function fetchMetadata(apiUrl) {
+            if (!isPlaying) return;
+            try {
+                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
+                if (!response.ok) return;
+                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
+                if (song) {
+                    trackTitleEl.textContent = song.title || 'Unknown Track';
+                    trackArtistEl.textContent = song.artist || 'Unknown Artist';
+                    trackTitleEl.classList.remove('placeholder'); 
+                    trackArtistEl.classList.remove('placeholder');
+                    if (song.art?.trim()) { 
+                        let artUrl = song.art; 
+                        if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; 
+                        setCoverArt(artUrl); 
+                    }
+                }
+                if (duration && elapsed !== undefined) { 
+                    trackData = { duration, elapsed, lastUpdate: Date.now() }; 
+                    updateProgress(elapsed, duration); 
+                    startProgressAnimation(); 
+                }
+            } catch (e) { Debug.log('warn', 'Metadata fetch failed: ' + e.message); }
+        }
 
-        function setupEventListeners() {\n            playBtn.addEventListener('click', togglePlay);\n            prevBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i<=0?k.length-1:i-1]); });\n            nextBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i>=k.length-1?0:i+1]); });\n            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });\n            stationsOverlay.addEventListener('click', (e) => { if (e.target === stationsOverlay) closeStations(); });\n            \n            let touchStartX=0,touchStartY=0,isSwiping=false;\n            stationsOverlay.addEventListener('touchstart',(e)=>{touchStartX=e.changedTouches[0].screenX;touchStartY=e.changedTouches[0].screenY;isSwiping=true;},{passive:true});\n            stationsOverlay.addEventListener('touchend',(e)=>{if(!isSwiping)return;isSwiping=false;const dx=e.changedTouches[0].screenX-touchStartX,dy=e.changedTouches[0].screenY-touchStartY;if(dy>80&&Math.abs(dx)<0.5*Math.abs(dy))closeStations();},{passive:true});\n            \n            let globalStartX=0,globalStartY=0;\n            document.addEventListener('touchstart',(e)=>{globalStartX=e.changedTouches[0].screenX;globalStartY=e.changedTouches[0].screenY;},{passive:true});\n            document.addEventListener('touchend',(e)=>{if(stationsOpen)return;const dx=globalStartX-e.changedTouches[0].screenX,dy=e.changedTouches[0].screenY-globalStartY;if(Math.abs(dx)>50&&Math.abs(dx)>1.5*Math.abs(dy))(dx>0?nextBtn.click():prevBtn.click());},{passive:true});\n            \n            audio.addEventListener('error', (e) => {\n                const err = audio.error;\n                Debug.log('error', `🔊 Audio error: code=${err?.code}`);\n                if (isPlaying) { updateStatus('error', 'Ошибка потока'); stopPlayback(); }\n            });\n            audio.addEventListener('playing', () => {\n                playbackStarted = true;\n                updateStatus('online');\n                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);\n            });\n        }
+        function setupEventListeners() {
+            playBtn.addEventListener('click', togglePlay);
+            prevBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i<=0?k.length-1:i-1]); });
+            nextBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i>=k.length-1?0:i+1]); });
+            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });
+            stationsOverlay.addEventListener('click', (e) => { if (e.target === stationsOverlay) closeStations(); });
+            
+            let touchStartX=0,touchStartY=0,isSwiping=false;
+            stationsOverlay.addEventListener('touchstart',(e)=>{touchStartX=e.changedTouches[0].screenX;touchStartY=e.changedTouches[0].screenY;isSwiping=true;},{passive:true});
+            stationsOverlay.addEventListener('touchend',(e)=>{if(!isSwiping)return;isSwiping=false;const dx=e.changedTouches[0].screenX-touchStartX,dy=e.changedTouches[0].screenY-touchStartY;if(dy>80&&Math.abs(dx)<0.5*Math.abs(dy))closeStations();},{passive:true});
+            
+            let globalStartX=0,globalStartY=0;
+            document.addEventListener('touchstart',(e)=>{globalStartX=e.changedTouches[0].screenX;globalStartY=e.changedTouches[0].screenY;},{passive:true});
+            document.addEventListener('touchend',(e)=>{if(stationsOpen)return;const dx=globalStartX-e.changedTouches[0].screenX,dy=e.changedTouches[0].screenY-globalStartY;if(Math.abs(dx)>50&&Math.abs(dx)>1.5*Math.abs(dy))(dx>0?nextBtn.click():prevBtn.click());},{passive:true});
+            
+            audio.addEventListener('error', (e) => {
+                const err = audio.error;
+                Debug.log('error', `🔊 Audio error: code=${err?.code} ${['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err?.code]||'?'}'`);
+                if (isPlaying) { updateStatus('error', 'Ошибка потока'); stopPlayback(); }
+            });
+            audio.addEventListener('playing', () => {
+                playbackStarted = true;
+                updateStatus('online');
+                Debug.updateAudioState();
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+            });
+            audio.addEventListener('waiting', () => { updateStatus('loading', 'Буферизация...'); Debug.log('warn', '⏳ Buffering...'); });
+            audio.addEventListener('stalled', () => Debug.log('warn', '⚠️ Stream stalled'));
+            audio.addEventListener('canplay', () => Debug.log('info', '✅ Audio canplay'));
+            audio.addEventListener('canplaythrough', () => Debug.log('info', '✅ Audio canplaythrough'));
+        }
 
-        // === INIT ===\n        try {\n            Debug.init();\n            initPlaceholders();\n            setupEventListeners();\n            initStationsStatic();\n            loadStationsBackground();\n        } catch (e) { Debug.log('error', 'Init Error: ' + e.message); }
+        // === INIT ===
+        try {
+            Debug.init();
+            initPlaceholders();
+            setupEventListeners();
+            initStationsStatic();
+            loadStationsBackground();
+        } catch (e) { Debug.log('error', 'Init Error: ' + e.message); }
 
-        // Telegram Web App\n        if (window.Telegram && window.Telegram.WebApp) {\n            try {\n                const tg = window.Telegram.WebApp;\n                tg.ready(); tg.expand && tg.expand();\n            } catch (e) {}\n        }
+        // Telegram Web App
+        if (window.Telegram && window.Telegram.WebApp) {
+            try {
+                const tg = window.Telegram.WebApp;
+                tg.ready(); tg.expand && tg.expand();
+            } catch (e) {}
+        }
 
-        // Cleanup\n        window.addEventListener('beforeunload', () => { stopPlayback(); });\n        window.addEventListener('resize', () => {\n            Debug.updateAudioState();\n        });
-
-        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, Debug };
+        // Cleanup
+        window.addEventListener('beforeunload', () => { stopPlayback(); ConstellationViz.cleanup(); });
+        window.addEventListener('resize', () => {
+            if (ConstellationViz.ctx) {
+                const c = document.getElementById('viz-canvas'), dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
+                c.width = r.width * dpr; c.height = r.height * dpr;
+            }
+            Debug.updateAudioState();
+        });
+        
+        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, Debug, ConstellationViz };
     </script>
 </body>
 </html>
