@@ -10,7 +10,6 @@
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#2d1f4e">
-    <link rel="manifest" href="manifest.json">
     
     <!-- Fonts & Telegram SDK -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -393,7 +392,7 @@
                     result.textContent = '🔐 Проверка CORS...';
                     try {
                         const url = stations[currentStationKey].stream;
-                        // Note: Standard fetch with CORS. If server doesn't support OPTIONS or GET headers, this might fail.
+                        // Using OPTIONS request to test preflight headers
                         const resp = await fetch(url, { method: 'OPTIONS', headers: { 'Origin': location.origin, 'Access-Control-Request-Method': 'GET' }});
                         const cors = resp.headers.get('access-control-allow-origin');
                         if (cors) {
@@ -402,7 +401,7 @@
                             this.log('success', `CORS test OK: ${cors}`);
                         } else {
                             result.className = 'debug-test-result err';
-                            result.textContent = `❌ CORS не настроен`;
+                            result.textContent = `❌ CORS не настроен (Нет заголовка)`;
                             this.log('error', 'CORS test FAILED: no header');
                         }
                     } catch (e) {
@@ -639,7 +638,7 @@
         }
         function stopVisualizer() { ConstellationViz.stop(); }
 
-        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK (Safari/iOS friendly)
+        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK (Защита от AbortError)
         function startPlayback(station) {
             Debug.log('info', `🎵 Start playback: ${station.name}`);
             playbackStarted = false;
