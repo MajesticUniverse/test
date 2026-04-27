@@ -3,18 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CORS Audio Test</title>
+    <title>Majestic Radio with Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #282c34;
+            color: #fff;
+            padding: 30px;
+        }
+        audio {
+            margin: 20px 0;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background: #61dafb;
+            color: #000;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:disabled {
+            background: #aaa;
+        }
+    </style>
 </head>
 <body>
-    <h2>Majestic Radio Test</h2>
-    <audio id="audio-player" controls crossorigin="anonymous"></audio>
+    <h1>Majestic Radio</h1>
+    <h2>Listen with Visualizer</h2>
+    <audio id="audio-player" crossorigin="anonymous" controls></audio>
+    <button id="start-btn">Start Visualizer</button>
+    <canvas id="visualizer" width="600" height="200"></canvas>
+
     <script>
         const audio = document.getElementById("audio-player");
+        const canvas = document.getElementById("visualizer");
+        const startBtn = document.getElementById("start-btn");
+        const canvasCtx = canvas.getContext("2d");
+        let audioCtx, analyser, dataArray, source;
+
+        // Set Audio Source
         audio.src = "https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3";
-        audio.play().then(() => {
-            console.log("Audio playback started!");
-        }).catch((error) => {
-            console.error("Audio playback error: ", error);
+        audio.crossOrigin = "anonymous";
+
+        // Initialize Visualizer
+        function initVisualizer() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            analyser = audioCtx.createAnalyser();
+
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+
+            source = audioCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+
+            drawVisualizer();
+        }
+
+        // Draw Visualizer
+        function drawVisualizer() {
+            const WIDTH = canvas.width;
+            const HEIGHT = canvas.height;
+
+            function draw() {
+                canvasCtx.clearRect(0, 0, WIDTH, HEIGHT);
+                analyser.getByteFrequencyData(dataArray);
+                canvasCtx.fillStyle = "rgb(0, 0, 0)";
+                canvasCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+                const barWidth = (WIDTH / dataArray.length) * 2.5;
+                let barHeight;
+                let x = 0;
+
+                for (let i = 0; i < dataArray.length; i++) {
+                    barHeight = dataArray[i];
+                    canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                    canvasCtx.fillRect(x, HEIGHT - barHeight / 2, barWidth, barHeight / 2);
+                    x += barWidth + 1;
+                }
+
+                requestAnimationFrame(draw);
+            }
+
+            draw();
+        }
+
+        // User interaction for AudioContext
+        startBtn.addEventListener("click", () => {
+            if (!audioCtx) {
+                initVisualizer();
+            }
+            if (audio.paused) {
+                audio.play().catch(error => console.error("Playback error: ", error));
+            }
+            audioCtx.resume().then(() => {
+                console.log("AudioContext resumed");
+                startBtn.disabled = true;
+            });
         });
     </script>
 </body>
