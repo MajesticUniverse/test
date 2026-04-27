@@ -266,8 +266,8 @@
         </div>
     </div>
 
-    <!-- 🔥 crossorigin="anonymous" КРИТИЧЕН для визуализатора -->
-    <audio id="audio-player" preload="none" playsinline crossorigin="anonymous"></audio>
+    <!-- 🔥 Убрали crossorigin для теста, чтобы исключить его влияние на воспроизведение -->
+    <audio id="audio-player" preload="metadata" playsinline></audio>
     
     <script>
         // ===============================
@@ -423,8 +423,7 @@
                     result.textContent = '🔊 Тест аудио...';
                     try {
                         const testAudio = new Audio();
-                        testAudio.crossOrigin = 'anonymous';
-                        testAudio.preload = 'none';
+                        // Без crossorigin для чистоты теста
                         const url = stations[currentStationKey].stream + '?test=' + Date.now();
                         testAudio.src = url;
                         const start = Date.now();
@@ -464,6 +463,7 @@
                     this.analyser.fftSize = this.CONFIG.FFT_SIZE;
                     this.analyser.smoothingTimeConstant = this.CONFIG.SMOOTHING;
                     this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+                    // Важно: если audio элемент не имеет crossorigin, MediaElementSource может выдать ошибку на кросс-доменном ресурсе
                     this.sourceNode = this.audioCtx.createMediaElementSource(audioElement);
                     this.sourceNode.connect(this.analyser);
                     this.analyser.connect(this.audioCtx.destination);
@@ -563,8 +563,6 @@
         let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;
-        
-        // 🔥 Флаги защиты от двойных кликов
         let isProcessingPlay = false;
         let playTimeout = null;
         
@@ -645,19 +643,18 @@
         }
         function stopVisualizer() { ConstellationViz.stop(); }
 
-        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK (с защитой от AbortError)
+        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK
         function startPlayback(station) {
-            // 🔒 Защита от двойных кликов
             if (isProcessingPlay) {
-                Debug.log('warn', '⚠️ Play already in progress, ignoring click');
+                Debug.log('warn', '⚠️ Play already in progress');
                 return;
             }
             isProcessingPlay = true;
-            
-            // Сброс предыдущих таймеров
             if (playTimeout) clearTimeout(playTimeout);
             
             Debug.log('info', `🎵 Start playback: ${station.name}`);
+            Debug.log('info', `🔗 URL: ${station.stream}`);
+            
             playbackStarted = false;
             ConstellationViz.stop();
             updateStatus('loading', 'Подключение...');
@@ -666,7 +663,7 @@
             audio.src = `${station.stream}?t=${Date.now()}`;
             audio.load();
             
-            // КРИТИЧНО: play() вызывается СИНХРОННО в ответ на клик
+            // КРИТИЧНО: play() вызывается СИНХРОННО
             const playPromise = audio.play();
             
             if (playPromise !== undefined) {
@@ -682,25 +679,19 @@
                         metadataInterval && clearInterval(metadataInterval);
                         metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
                         
-                        // Снимаем блокировку через небольшую задержку
                         setTimeout(() => { isProcessingPlay = false; }, 1000);
                     })
                     .catch(err => {
                         Debug.log('error', `❌ Playback failed: ${err.name} - ${err.message}`);
-                        
-                        // iOS часто выдает NotAllowedError при первом клике
                         const msg = err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения';
                         updateStatus('error', msg);
                         isPlaying = false; playbackStarted = false;
                         updatePlayButton();
                         stopVisualizer();
-                        
-                        // Снимаем блокировку
                         isProcessingPlay = false;
                     });
             }
             
-            // Таймаут на случай, если play() зависнет (AbortError)
             playTimeout = setTimeout(() => {
                 if (!isPlaying && !audio.paused) {
                     Debug.log('warn', '⏱️ Play timeout reached, resetting');
@@ -709,7 +700,7 @@
                     updateStatus('error', 'Таймаут подключения');
                     isProcessingPlay = false;
                 }
-            }, 10000); // 10 секунд таймаут
+            }, 10000);
         }
 
         function stopPlayback() {
