@@ -1,59 +1,295 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Majestic Radio · Liquid Drum Visualizer</title>
+    <style>
+        /* (стили такие же, как в прошлый раз, можно опустить для краткости) */
+        * { box-sizing: border-box; user-select: none; }
+        body {
+            background: linear-gradient(135deg, #050a14 0%, #0a121f 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+            padding: 2rem;
+        }
+        .radio-visualizer {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(12, 25, 45, 0.65);
+            backdrop-filter: blur(16px);
+            border-radius: 3rem;
+            padding: 1.8rem 2rem 2rem 2rem;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.5);
+            border: 1px solid rgba(72, 187, 255, 0.3);
+        }
+        .station-info { text-align: center; margin-bottom: 1.8rem; }
+        .station-name {
+            font-size: 1.7rem;
+            font-weight: 700;
+            background: linear-gradient(120deg, #fff, #7bc5ff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .listener-count {
+            font-size: 0.85rem;
+            color: #b0d4ff;
+            background: rgba(0, 30, 60, 0.6);
+            display: inline-block;
+            padding: 0.2rem 1rem;
+            border-radius: 40px;
+            margin-top: 8px;
+        }
+        .now-playing-card {
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 2rem;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            border-left: 3px solid #3b82f6;
+        }
+        .song-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #f0f3fa;
+            word-break: break-word;
+        }
+        .song-artist { font-size: 1.1rem; color: #9bb7d4; }
+        .visualizer-container {
+            background: #03060ecc;
+            border-radius: 2rem;
+            padding: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 160px;
+            background: #01040b;
+            border-radius: 1.5rem;
+        }
+        .controls { display: flex; justify-content: center; gap: 1rem; }
+        button {
+            background: rgba(20, 50, 88, 0.9);
+            border: none;
+            color: white;
+            font-size: 1.4rem;
+            cursor: pointer;
+            padding: 0.6rem 1.3rem;
+            border-radius: 3rem;
+            transition: 0.2s;
+            font-weight: 600;
+            box-shadow: 0 5px 12px rgba(0,0,0,0.3);
+            border: 0.5px solid rgba(59,130,246,0.6);
+        }
+        button:hover { background: #2c5a9e; transform: scale(0.97); }
+        .status-badge {
+            font-size: 0.8rem;
+            background: #1f2a44;
+            display: inline-block;
+            border-radius: 30px;
+            padding: 0.3rem 1rem;
+            margin-top: 1rem;
+            text-align: center;
+            color: #bbd9ff;
+        }
+        footer { font-size: 0.7rem; text-align: center; margin-top: 1.5rem; color: #5e7c9c; }
+    </style>
+</head>
+<body>
+<div class="radio-visualizer">
+    <div class="station-info">
+        <div class="station-name" id="stationName">🎧 Majestic Radio</div>
+        <div class="listener-count" id="listenerCount">👥 слушателей: --</div>
+    </div>
+    <div class="now-playing-card">
+        <div class="song-title" id="songTitle">—</div>
+        <div class="song-artist" id="songArtist">—</div>
+        <div id="liveBadge" style="font-size:0.75rem; margin-top: 6px; color:#6c9dd4;"></div>
+    </div>
+    <div class="visualizer-container">
+        <canvas id="audioCanvas" width="800" height="160"></canvas>
+    </div>
+    <div class="controls">
+        <button id="playBtn">▶ Включить</button>
+        <button id="stopBtn">⏹ Выключить</button>
+    </div>
+    <div class="status-badge" id="audioStatus">⚡ Статус: Остановлен</div>
+    <footer>🎛 Liquid Drum · Визуализация через Web Audio API</footer>
+</div>
 
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  background-color: white; /* Ensure the iframe has a white background */
+<script>
+    const CONFIG = {
+        baseUrl: 'https://majesticradio.duckdns.org',
+        stationId: '1',               // можно и 'liquid_drum', но '1' тоже работает
+        streamUrl: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3'
+    };
+
+    let audioElement = null;
+    let audioContext = null;
+    let sourceNode = null;
+    let analyserNode = null;
+    let animationId = null;
+    let isPlaying = false;
+
+    const canvas = document.getElementById('audioCanvas');
+    const ctx = canvas.getContext('2d');
+    const songTitleEl = document.getElementById('songTitle');
+    const songArtistEl = document.getElementById('songArtist');
+    const stationNameEl = document.getElementById('stationName');
+    const listenerCountEl = document.getElementById('listenerCount');
+    const liveBadge = document.getElementById('liveBadge');
+    const audioStatus = document.getElementById('audioStatus');
+
+    // Получение данных о текущем треке
+    async function fetchNowPlaying() {
+        try {
+            const res = await fetch(`${CONFIG.baseUrl}/api/nowplaying/${CONFIG.stationId}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+
+            if (data.station?.name) stationNameEl.innerText = data.station.name;
+            if (data.listeners?.total !== undefined) {
+                listenerCountEl.innerText = `👥 слушателей: ${data.listeners.total}`;
+            }
+
+            if (data.now_playing?.song) {
+                const song = data.now_playing.song;
+                songTitleEl.innerText = song.title || '—';
+                songArtistEl.innerText = song.artist || '—';
+            } else {
+                songTitleEl.innerText = 'Ожидание трека';
+                songArtistEl.innerText = '';
+            }
+
+            if (data.live?.is_live && data.live.streamer_name) {
+                liveBadge.innerHTML = `🔴 ПРЯМОЙ ЭФИР: ${data.live.streamer_name}`;
+            } else {
+                liveBadge.innerHTML = `🎛 Автодиджей`;
+            }
+        } catch (err) {
+            console.warn('Ошибка API:', err);
+            songTitleEl.innerText = '⚠️ Не удалось загрузить данные';
+        }
+    }
+
+    setInterval(fetchNowPlaying, 10000);
+    fetchNowPlaying();
+
+    // Инициализация Web Audio и визуализатора
+    function initAudioContext() {
+        if (audioContext && audioContext.state !== 'closed') return audioContext;
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        return audioContext;
+    }
+
+    function setupVisualizer(audioEl) {
+        if (!audioContext) initAudioContext();
+        if (sourceNode) {
+            try { sourceNode.disconnect(); } catch(e) {}
+        }
+        if (analyserNode) {
+            try { analyserNode.disconnect(); } catch(e) {}
+        }
+
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 256;
+        const bufferLength = analyserNode.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        sourceNode = audioContext.createMediaElementSource(audioEl);
+        sourceNode.connect(analyserNode);
+        analyserNode.connect(audioContext.destination);
+
+        function draw() {
+            if (!isPlaying) {
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#01040b';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#2d5980';
+                    ctx.font = '12px monospace';
+                    ctx.fillText('⏸ Воспроизведение остановлено', canvas.width/2-120, canvas.height/2);
                 }
+                animationId = null;
+                return;
+            }
+            animationId = requestAnimationFrame(draw);
+            analyserNode.getByteFrequencyData(dataArray);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const barWidth = (canvas.width / bufferLength) * 1.5;
+            let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const percent = dataArray[i] / 255;
+                const barHeight = percent * canvas.height * 0.85;
+                const hue = 200 + percent * 120;
+                ctx.fillStyle = `hsl(${hue}, 85%, 60%)`;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+                x += barWidth;
+            }
+        }
+        if (isPlaying) draw();
+    }
 
-                
-              </style>
-                        </head>
-                        <body>
-                            <audio id="audio-player" preload="none" playsinline></audio>
+    async function startPlayback() {
+        if (audioElement && isPlaying) return;
+        if (audioElement) {
+            audioElement.pause();
+            audioElement.src = '';
+        }
+        audioElement = new Audio();
+        audioElement.crossOrigin = "anonymous";  // нужен для CORS (и он должен быть разрешён)
+        audioElement.src = CONFIG.streamUrl;
+        audioElement.autoplay = true;
+        try {
+            await audioElement.play();
+            const ctx = initAudioContext();
+            if (ctx.state === 'suspended') await ctx.resume();
+            setupVisualizer(audioElement);
+            isPlaying = true;
+            audioStatus.innerText = '🎶 Статус: Играет + визуализация';
+            fetchNowPlaying();
+        } catch (err) {
+            console.error('Ошибка воспроизведения:', err);
+            audioStatus.innerText = '❌ Ошибка: возможно, CORS для аудио не разрешён';
+            isPlaying = false;
+        }
+    }
 
+    function stopPlayback() {
+        if (audioElement) {
+            audioElement.pause();
+            audioElement.src = '';
+        }
+        if (sourceNode) {
+            try { sourceNode.disconnect(); } catch(e) {}
+            sourceNode = null;
+        }
+        if (animationId) cancelAnimationFrame(animationId);
+        isPlaying = false;
+        audioStatus.innerText = '⏹ Статус: Остановлен';
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#01040b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffffff80';
+            ctx.font = '14px monospace';
+            ctx.fillText('Спектр остановлен', canvas.width/2-80, canvas.height/2);
+        }
+    }
 
+    document.getElementById('playBtn').onclick = () => startPlayback();
+    document.getElementById('stopBtn').onclick = () => stopPlayback();
 
-              <script>
-                              // В startPlayback():
-audio.removeAttribute('crossorigin');
-audio.src = `${station.stream}?t=${Date.now()}`;
-
-// В draw():
-let totalEnergy = 0;
-for (let i = 0; i <= maxFreqBin; i++) totalEnergy += this.freqData[i];
-const hasSignal = totalEnergy > Math.max(1500, maxFreqBin * 1.5);
-this.syntheticPhase += 0.04;
-
-// В цикле обновления узлов:
-const rawVal = this.freqData[bin] / 255;
-const syntheticVal = 0.1 + 0.25 * (0.5 + 0.5 * Math.sin(this.syntheticPhase + ratio * 8)) + Math.random() * 0.08;
-const val = hasSignal ? rawVal : Math.min(0.45, syntheticVal); // ← Фолбэк!
-
-if (!hasSignal && ConstellationViz.syntheticPhase % 100 < 1) {
-    console.log('🎭 Using synthetic animation (CORS blocked real data)');
-}
-
-// В startVisualizer():
-if (ConstellationViz.audioCtx?.state === 'suspended') {
-    ConstellationViz.audioCtx.resume().then(() => {
-        // Гарантия, что контекст разбужен до начала draw()
-        ConstellationViz.start();
-    }).catch(e => console.error('Failed to resume:', e));
-}
-
-audio.addEventListener('waiting', () => {
-    statusBadge.textContent = '🔄 Буферизация...';
-});
-audio.addEventListener('stalled', () => {
-    statusBadge.textContent = '⚠️ Поток задерживается';
-});
-
-
-              </script>
-                        </body>
-                        </html>
-                    
+    window.addEventListener('beforeunload', () => {
+        if (audioElement) audioElement.pause();
+        if (audioContext) audioContext.close();
+    });
+</script>
+</body>
+</html>
