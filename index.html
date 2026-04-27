@@ -4,63 +4,193 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Majestic Radio</title>
+    <!-- PWA & Mobile Meta -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
+    
+    <!-- Fonts & Telegram SDK -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+    
     <style>
         :root {
             --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
             --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
             --accent: #7c3aed; --accent-light: #a78bfa; --success: #10b981; --error: #ef4444;
-            --shadow-lg: 0 10px 40px rgba(0,0,0,0.4); --border-radius: 16px; --border-radius-lg: 24px;
-            --btn-glass: rgba(255,255,255,0.08); --btn-glass-hover: rgba(255,255,255,0.15); --btn-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4); --border-radius: 16px; --border-radius-lg: 24px;
+            --btn-glass: rgba(255, 255, 255, 0.08); --btn-glass-hover: rgba(255, 255, 255, 0.15); --btn-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
-            color: var(--text-primary); min-height: 100vh; display: flex; justify-content: center; align-items: flex-start;
+            color: var(--text-primary); min-height: 100vh; min-height: -webkit-fill-available;
+            overflow-x: hidden; display: flex; justify-content: center; align-items: flex-start;
         }
-        .app-container { width: 100%; max-width: 420px; padding: 24px; }
+        .app-container { width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
         .player-card {
-            background: rgba(45,31,78,0.6); backdrop-filter: blur(20px);
-            border-radius: var(--border-radius-lg); border: 1px solid rgba(255,255,255,0.1);
-            padding: 24px; box-shadow: var(--shadow-lg); position: relative;
+            width: 100%; background: rgba(45, 31, 78, 0.6); backdrop-filter: blur(20px);
+            border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 24px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;
         }
-        .app-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .app-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
         .logo { display: flex; align-items: center; gap: 12px; }
-        .radio-title { font-size: 16px; font-weight: 600; }
+        .radio-title { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: 1px; }
         .header-right { display: flex; align-items: center; gap: 8px; }
         .icon-btn {
-            width: 38px; height: 38px; border-radius: 50%; background: var(--btn-glass); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1); color: white; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; font-size: 14px;
+            width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60; font-size: 14px;
         }
-        .burger-btn .burger-line { width: 18px; height: 2px; background: white; border-radius: 1px; position: absolute; transition: 0.3s; }
+        .icon-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); }
+        .burger-btn .burger-line {
+            width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px;
+            position: absolute; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         .burger-btn .burger-line:first-child { transform: translateY(-5px); }
         .burger-btn .burger-line:nth-child(3) { transform: translateY(5px); }
         .burger-btn.active .burger-line:first-child { transform: rotate(45deg); }
-        .burger-btn.active .burger-line:nth-child(2) { opacity: 0; }
+        .burger-btn.active .burger-line:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .burger-btn.active .burger-line:nth-child(3) { transform: rotate(-45deg); }
-        .cover-wrapper { aspect-ratio: 1; border-radius: var(--border-radius); overflow: hidden; margin-bottom: 24px; }
-        .cover-art { width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed, #a78bfa); background-size: cover; background-position: center; }
-        .viz-container { position: absolute; bottom:0; left:0; right:0; height:50%; opacity:0; transition:0.4s; }
-        .viz-container.active { opacity:1; }
-        .controls { display: flex; justify-content: center; gap: 24px; margin: 20px 0; }
-        .control-btn { width:52px; height:52px; border-radius:50%; background: var(--btn-glass); border:1px solid rgba(255,255,255,0.1); color:white; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-        .play-btn { width:76px; height:76px; background: rgba(124,58,237,0.8); }
-        .stations-overlay { position:absolute; inset:0; background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); border-radius: var(--border-radius-lg); z-index:50; display:none; align-items:center; justify-content:center; }
-        .stations-overlay.open { display:flex; }
-        .debug-panel { position:absolute; inset:0; background: rgba(5,2,15,0.95); backdrop-filter: blur(20px); border-radius: var(--border-radius-lg); z-index:100; display:none; flex-direction:column; padding:16px; }
-        .debug-panel.open { display:flex; }
-        /* остальные стили оставлены краткими для читаемости */
+
+        .cover-wrapper {
+            position: relative; width: 100%; margin-bottom: 24px; border-radius: var(--border-radius);
+            overflow: hidden; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5); aspect-ratio: 1;
+        }
+        .cover-art {
+            width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+            display: flex; align-items: center; justify-content: center; font-size: 80px;
+            background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .cover-art.playing { animation: pulse-slow 6s ease-in-out infinite; }
+        .cover-placeholder { opacity: 0.6; color: white; }
+        @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+
+        /* 🔥 Визуализатор на основе wavesurfer.js */
+        .viz-container {
+            position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 50%;
+            pointer-events: none; opacity: 0; transition: opacity 0.4s ease;
+            background: linear-gradient(to top, rgba(10,5,20,0.8) 0%, transparent 60%);
+            border-bottom-left-radius: var(--border-radius);
+            border-bottom-right-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        .viz-container.active { opacity: 1; }
+        #viz-canvas { width: 100%; height: 100%; display: block; }
+
+        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+        .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
+        .track-title.placeholder { opacity: 0.5; }
+        .track-artist { font-size: 17px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
+        .track-artist.placeholder { opacity: 0.5; }
+
+        .progress-container { width: 100%; margin-bottom: 24px; min-height: 36px; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
+        .progress-container.active { opacity: 1; visibility: visible; }
+        .progress-bar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; position: relative; cursor: default; }
+        .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); border-radius: 2px; transition: width 0.3s ease; }
+        .progress-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 500; }
+
+        .controls { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 32px; }
+        .control-btn {
+            width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow);
+        }
+        .control-btn svg { width: 20px; height: 20px; fill: currentColor; transition: transform 0.2s; }
+        .control-btn:hover { background: var(--btn-glass-hover); transform: translateY(-2px); }
+        .control-btn:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.2); }
+
+        .play-btn {
+            width: 76px; height: 76px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8));
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .play-btn svg { width: 28px; height: 28px; fill: white; }
+        .play-btn:hover { background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(167, 139, 250, 0.95)); transform: translateY(-3px) scale(1.05); }
+        .play-btn:active { transform: scale(0.95); }
+
+        .stations-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(15px);
+            border-radius: var(--border-radius-lg); z-index: 50;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 32px 24px; opacity: 0; visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+            transform: scale(0.95);
+        }
+        .stations-overlay.open { opacity: 1; visibility: visible; transform: scale(1); }
+        .stations-overlay-content { display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 1; pointer-events: auto; }
+        .stations-overlay-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); }
+        .stations-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
+        .station-item {
+            width: 100%; padding: 14px 18px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary); font-size: 14px; cursor: pointer;
+            transition: all 0.2s ease; font-family: inherit; font-weight: 500;
+            text-align: left; display: flex; align-items: center; gap: 10px;
+        }
+        .station-item:hover { background: rgba(255, 255, 255, 0.12); }
+        .station-item:active { transform: scale(0.98); }
+        .station-item.active { background: rgba(124, 58, 237, 0.3); border-color: var(--accent); }
+        .station-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+        .station-item.active .station-dot { background: var(--success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+        .stations-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px; }
+
+        .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
+        .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        .status-badge.loading { background: rgba(167, 139, 250, 0.2); color: var(--accent-light); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
+        @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
+
+        /* 🔧 DEBUG PANEL STYLES */
+        .debug-panel {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(5, 2, 15, 0.95); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--border-radius-lg); z-index: 100;
+            display: none; flex-direction: column; padding: 16px;
+        }
+        .debug-panel.open { display: flex; }
+        .debug-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+        .debug-header h3 { font-size: 16px; margin: 0; }
+        .debug-actions { display: flex; gap: 8px; }
+        .debug-btn { padding: 6px 10px; border-radius: 8px; background: var(--btn-glass); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 12px; cursor: pointer; }
+        .debug-btn:hover { background: var(--btn-glass-hover); }
+        .debug-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .debug-logs {
+            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            background: rgba(0,0,0,0.3); border-radius: 8px; padding: 8px;
+            font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px; line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        .debug-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 4px; flex-wrap: wrap; }
+        .debug-entry .time { color: #666; flex-shrink: 0; }
+        .debug-entry.info { color: #a78bfa; }
+        .debug-entry.warn { color: #f59e0b; }
+        .debug-entry.error { color: #ef4444; }
+        .debug-entry.success { color: #10b981; }
+        .debug-section { margin-bottom: 12px; }
+        .debug-section-title { font-size: 11px; font-weight: 700; color: var(--accent-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .debug-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
+        .debug-label { color: var(--text-muted); }
+        .debug-value { color: var(--text-secondary); text-align: right; max-width: 60%; word-break: break-all; }
+        .debug-value.error { color: var(--error); }
+        .debug-value.ok { color: var(--success); }
+        .debug-test-result { font-size: 10px; color: var(--text-muted); margin-top: 4px; padding: 4px 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+        .debug-test-result.ok { color: var(--success); }
+        .debug-test-result.err { color: var(--error); }
     </style>
 </head>
 <body>
@@ -69,274 +199,121 @@
             <header class="app-header">
                 <div class="logo"><h1 class="radio-title">MAJESTIC RADIO</h1></div>
                 <div class="header-right">
-                    <div class="status-badge" id="status-badge">Оффлайн</div>
-                    <button id="debug-toggle" class="icon-btn">🔧</button>
-                    <button id="burger-btn" class="icon-btn burger-btn">
+                    <div class="status-badge" id="status-badge"><span>Оффлайн</span></div>
+                    <button id="debug-toggle" class="icon-btn" title="Диагностика">🔧</button>
+                    <button class="icon-btn burger-btn" id="burger-btn" title="Станции">
                         <span class="burger-line"></span><span class="burger-line"></span><span class="burger-line"></span>
                     </button>
                 </div>
             </header>
             <div class="cover-wrapper">
-                <div class="cover-art" id="cover-art">🎵</div>
+                <div class="cover-art" id="cover-art"><div class="cover-placeholder">🎵</div></div>
                 <div class="viz-container" id="viz-container"><canvas id="viz-canvas"></canvas></div>
             </div>
             <div class="track-info">
-                <h2 class="track-title" id="track-title">—</h2>
-                <p class="track-artist" id="track-artist">—</p>
+                <h2 class="track-title placeholder" id="track-title">—</h2>
+                <p class="track-artist placeholder" id="track-artist">—</p>
             </div>
             <div class="progress-container" id="progress-container">
                 <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
                 <div class="progress-time"><span id="progress-current">0:00</span><span id="progress-duration">0:00</span></div>
             </div>
             <div class="controls">
-                <button class="control-btn" id="prev-btn"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
-                <button class="control-btn play-btn" id="play-btn">
+                <button class="control-btn" id="prev-btn" title="Предыдущая станция"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
+                <button class="control-btn play-btn" id="play-btn" title="Play/Pause">
                     <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    <svg id="pause-icon" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    <svg id="pause-icon" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                 </button>
-                <button class="control-btn" id="next-btn"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
+                <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
             <div class="stations-overlay" id="stations-overlay">
                 <div class="stations-overlay-content">
-                    <h3>📻 Станции</h3>
-                    <div class="stations-list" id="stations-list"></div>
+                    <div class="stations-overlay-title">📻 Станции</div>
+                    <div class="stations-list" id="stations-list"><div class="stations-empty">Загрузка станций...</div></div>
                 </div>
             </div>
+            
+            <!-- 🔧 DEBUG PANEL -->
             <div class="debug-panel" id="debug-panel">
-                <div class="debug-header"><h3>🔧 Диагностика</h3><button id="debug-close">✕</button></div>
+                <div class="debug-header">
+                    <h3>🔧 Диагностика</h3>
+                    <div class="debug-actions">
+                        <button class="debug-btn" id="debug-copy">📋 Копировать</button>
+                        <button class="debug-btn" id="debug-close">✕</button>
+                    </div>
+                </div>
                 <div class="debug-logs" id="debug-logs"></div>
                 <div id="debug-tests">
-                    <div class="debug-section"><div class="debug-section-title">📡 Тесты</div>
-                        <button id="test-internet">🌐 Интернет</button>
-                        <button id="test-cors">🔐 CORS (OPTIONS)</button>
-                        <button id="test-audio">🔊 Аудио</button>
-                        <button id="test-stream-headers">📋 Заголовки потока</button>
+                    <div class="debug-section">
+                        <div class="debug-section-title">📡 Тесты подключения</div>
+                        <button class="debug-btn" id="test-internet">🌐 Интернет</button>
+                        <button class="debug-btn" id="test-cors">🔐 CORS</button>
+                        <button class="debug-btn" id="test-audio">🔊 Аудио</button>
                         <div class="debug-test-result" id="test-result"></div>
                     </div>
-                    <div class="debug-section"><div class="debug-section-title">📊 Аудио</div><div id="audio-state"></div></div>
-                    <div class="debug-section"><div class="debug-section-title">🎨 Web Audio</div><div id="waa-state"></div></div>
-                    <div class="debug-section"><div class="debug-section-title">🌍 Среда</div><div id="env-info"></div></div>
+                    <div class="debug-section">
+                        <div class="debug-section-title">📊 Состояние Audio</div>
+                        <div id="audio-state"></div>
+                    </div>
+                    <div class="debug-section">
+                        <div class="debug-section-title">🎨 Web Audio API</div>
+                        <div id="waa-state"></div>
+                    </div>
                 </div>
+                <small style="color:var(--text-muted); text-align:center; margin-top:8px;">Логи сохраняются до перезагрузки</small>
             </div>
         </div>
     </div>
 
-    <audio id="audio-player" preload="metadata" playsinline crossorigin="anonymous"></audio>
-
+    <!-- 🔥 Используем wavesurfer.js для совместимости с iOS -->
+    <script src="https://unpkg.com/wavesurfer.js@7.10.1/dist/wavesurfer.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7.10.1/dist/plugin/wavesurfer.spectrogram.js"></script>
     <script>
-        // === DEBUG ===
-        const Debug = {
-            logs: [], max: 200,
-            init() {
-                ['log','warn','error'].forEach(type => {
-                    const orig = console[type];
-                    console[type] = (...args) => {
-                        this.add(type, args.join(' '));
-                        orig.apply(console, args);
-                    };
-                });
-                this.setupUI();
-            },
-            add(type, msg) {
-                const time = new Date().toISOString().substr(11,8);
-                this.logs.unshift({ time, type, msg });
-                if (this.logs.length > this.max) this.logs.pop();
-                this.render();
-            },
-            render() {
-                const el = document.getElementById('debug-logs');
-                if (!el) return;
-                el.innerHTML = this.logs.map(l => `<div class="debug-entry ${l.type}"><span>[${l.time}]</span> ${l.msg}</div>`).join('');
-            },
-            updateAudioState() {
-                const el = document.getElementById('audio-state');
-                if (!el || !audio) return;
-                const err = audio.error;
-                el.innerHTML = `
-                    <div><b>src:</b> ${audio.src ? audio.src.substring(0,50)+'...' : '—'}</div>
-                    <div><b>network:</b> ${audio.networkState} <b>ready:</b> ${audio.readyState}</div>
-                    <div><b>error:</b> ${err?err.code+' '+['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err.code]:'none'}</div>`;
-            },
-            updateWAAState() {
-                const el = document.getElementById('waa-state');
-                if (!el) return;
-                const ctx = ConstellationViz.audioCtx;
-                el.innerHTML = `
-                    <div>AudioContext: ${ctx?ctx.state:'—'}</div>
-                    <div>Analyser: ${ConstellationViz.analyser?'✅':'❌'}</div>
-                    <div>SampleRate: ${ctx?ctx.sampleRate+'Hz':'—'}</div>`;
-            },
-            showEnv() {
-                const el = document.getElementById('env-info');
-                el.innerHTML = `<div><b>Origin:</b> ${location.origin}</div><div><b>UA:</b> ${navigator.userAgent.substring(0,80)}</div>`;
-            },
-            setupUI() {
-                document.getElementById('debug-toggle').onclick = () => {
-                    document.getElementById('debug-panel').classList.add('open');
-                    this.updateAudioState();
-                    this.updateWAAState();
-                    this.showEnv();
-                };
-                document.getElementById('debug-close').onclick = () => document.getElementById('debug-panel').classList.remove('open');
-                
-                const res = document.getElementById('test-result');
-                document.getElementById('test-internet').onclick = async () => {
-                    res.textContent = '...'; 
-                    try { await fetch('https://www.google.com/favicon.ico', {mode:'no-cors'}); res.textContent='✅ Интернет ок'; }
-                    catch(e) { res.textContent='❌ '+e.message; }
-                };
-                document.getElementById('test-cors').onclick = async () => {
-                    if (!currentStationKey) { res.textContent='Сначала выберите станцию'; return; }
-                    const url = stations[currentStationKey].stream;
-                    try {
-                        const resp = await fetch(url, { method: 'OPTIONS', headers: {'Origin': location.origin}});
-                        const cors = resp.headers.get('access-control-allow-origin');
-                        res.textContent = cors ? `✅ CORS: ${cors}` : '❌ Нет заголовка';
-                    } catch(e) { res.textContent='❌ Ошибка: '+e.message; }
-                };
-                document.getElementById('test-audio').onclick = async () => {
-                    if (!currentStationKey) return;
-                    const testAudio = new Audio();
-                    testAudio.crossOrigin = 'anonymous';
-                    testAudio.src = stations[currentStationKey].stream + '?t='+Date.now();
-                    try {
-                        await new Promise((resolve, reject) => {
-                            const t = setTimeout(() => reject(new Error('Timeout')), 5000);
-                            testAudio.oncanplay = () => { clearTimeout(t); resolve(); };
-                            testAudio.onerror = () => { clearTimeout(t); reject(testAudio.error); };
-                        });
-                        res.textContent = '✅ Аудио доступно';
-                    } catch(e) {
-                        res.textContent = '❌ Ошибка: ' + (e.message || e.code);
-                    }
-                };
-                document.getElementById('test-stream-headers').onclick = async () => {
-                    if (!currentStationKey) return;
-                    const url = stations[currentStationKey].stream + '?t='+Date.now();
-                    res.textContent = 'Загрузка...';
-                    try {
-                        const resp = await fetch(url, { method: 'GET', headers: {'Range': 'bytes=0-0'} });
-                        const headers = {};
-                        resp.headers.forEach((val, key) => headers[key] = val);
-                        res.innerHTML = `<pre>Status: ${resp.status}\n${JSON.stringify(headers, null, 2)}</pre>`;
-                    } catch(e) {
-                        res.textContent = '❌ '+e.message;
-                    }
-                };
-            }
-        };
+        // ===============================\n        // 🔧 BUILT-IN DEBUG INSPECTOR\n        // ===============================\n        const Debug = {\n            logs: [], max: 200,\n            original: { log: console.log, warn: console.warn, error: console.error },\n            \n            init() {\n                ['log','warn','error'].forEach(type => {\n                    console[type] = (...args) => {\n                        this.add(type, args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));\n                        this.original[type].apply(console, args);\n                    };\n                });\n                this.setupUI();\n                this.log('info', '🔧 Debug panel initialized');\n                this.updateAudioState();\n                setInterval(() => this.updateAudioState(), 2000);\n            },\n            \n            add(type, message) {\n                const time = new Date().toISOString().substring(11, 19);\n                this.logs.unshift({ time, type, message });\n                if (this.logs.length > this.max) this.logs.pop();\n                this.render();\n            },\n            \n            log(type, message) { this.add(type, message); },\n            \n            render() {\n                const el = document.getElementById('debug-logs');\n                if (!el) return;\n                el.innerHTML = this.logs.map(l => \n                    `<div class="debug-entry ${l.type}"><span class="time">[${l.time}]</span> <span>${l.message}</span></div>`\n                ).join('');\n            },\n            \n            updateAudioState() {\n                const el = document.getElementById('audio-state');\n                if (!el || !audio) return;\n                const err = audio.error;\n                const states = {\n                    network: ['(none)','LOADING(meta)','LOADING','LOADED','ERROR'],\n                    ready: ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA']\n                };\n                el.innerHTML = `\n                    <div class="debug-row"><span class="debug-label">src</span><span class="debug-value">${audio.src ? audio.src.substring(0,40)+'...' : '—'}</span></div>\n                    <div class="debug-row"><span class="debug-label">networkState</span><span class="debug-value ${audio.networkState===3?'error':audio.networkState===2?'warn':'ok'}">${audio.networkState} (${states.network[audio.networkState]||'?'})</span></div>\n                    <div class="debug-row"><span class="debug-label">readyState</span><span class="debug-value ${audio.readyState===0?'warn':'ok'}">${audio.readyState} (${states.ready[audio.readyState]||'?'})</span></div>\n                    <div class="debug-row"><span class="debug-label">paused</span><span class="debug-value">${audio.paused?'✅':'❌'}</span></div>\n                    <div class="debug-row"><span class="debug-label">currentTime</span><span class="debug-value">${audio.currentTime.toFixed(2)}s</span></div>\n                    <div class="debug-row"><span class="debug-label">error</span><span class="debug-value ${err?'error':'ok'}">${err?`code:${err.code} ${['','ABORTED','NETWORK','DECODE','SRC_NOT_SUPPORTED'][err.code]||'?'}`:'none'}</span></div>\n                `;\n            },\n            \n            setupUI() {\n                const toggle = document.getElementById('debug-toggle');\n                const panel = document.getElementById('debug-panel');\n                const close = document.getElementById('debug-close');\n                const copyBtn = document.getElementById('debug-copy');\n                const testInternet = document.getElementById('test-internet');\n                const testCors = document.getElementById('test-cors');\n                const testAudio = document.getElementById('test-audio');\n                const result = document.getElementById('test-result');\n                \n                toggle?.addEventListener('click', () => panel.classList.add('open'));\n                close?.addEventListener('click', () => panel.classList.remove('open'));\n                \n                copyBtn?.addEventListener('click', async () => {\n                    const text = this.logs.map(l => `[${l.time}] ${l.type.toUpperCase()}: ${l.message}`).join('\\n');\n                    const audioState = document.getElementById('audio-state')?.innerText || '';\n                    try {\n                        await navigator.clipboard.writeText(`=== MAJESTIC RADIO DEBUG ===\\n${text}\\n\\n=== AUDIO STATE ===\\n${audioState}`);\n                        copyBtn.textContent = '✅ Скопировано';\n                        setTimeout(() => copyBtn.textContent = '📋 Копировать', 2000);\n                    } catch {\n                        copyBtn.textContent = '❌ Ошибка';\n                    }\n                });\n                \n                testInternet?.addEventListener('click', async () => {\n                    result.className = 'debug-test-result';\n                    result.textContent = '🌐 Проверка...';\n                    try {\n                        const start = Date.now();\n                        await fetch('https://www.google.com/favicon.ico', { mode: 'no-cors', cache: 'no-store' });\n                        const ms = Date.now() - start;\n                        result.className = 'debug-test-result ok';\n                        result.textContent = `✅ Интернет работает (${ms}ms)`;\n                        this.log('success', `Internet test OK (${ms}ms)`);\n                    } catch (e) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = `❌ Нет интернета: ${e.name}`;\n                        this.log('error', `Internet test FAILED: ${e.name}`);\n                    }\n                });\n                \n                testCors?.addEventListener('click', async () => {\n                    if (!currentStationKey || !stations[currentStationKey]) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = '❌ Выберите станцию';\n                        return;\n                    }\n                    result.className = 'debug-test-result';\n                    result.textContent = '🔐 Проверка CORS...';\n                    try {\n                        const url = stations[currentStationKey].stream;\n                        const resp = await fetch(url, { method: 'OPTIONS', headers: { 'Origin': location.origin, 'Access-Control-Request-Method': 'GET' }});\n                        const cors = resp.headers.get('access-control-allow-origin');\n                        if (cors) {\n                            result.className = 'debug-test-result ok';\n                            result.textContent = `✅ CORS разрешён: ${cors}`;\n                            this.log('success', `CORS test OK: ${cors}`);\n                        } else {\n                            result.className = 'debug-test-result err';\n                            result.textContent = `❌ CORS не настроен`; \n                            this.log('error', 'CORS test FAILED: no header');\n                        }\n                    } catch (e) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = `❌ Ошибка: ${e.message}`;\n                        this.log('error', `CORS test error: ${e.message}`);\n                    }\n                });\n                \n                testAudio?.addEventListener('click', async () => {\n                    if (!currentStationKey || !stations[currentStationKey]) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = '❌ Выберите станцию';\n                        return;\n                    }\n                    result.className = 'debug-test-result';\n                    result.textContent = '🔊 Тест аудио...';\n                    try {\n                        const testAudio = new Audio();\n                        testAudio.crossOrigin = 'anonymous';\n                        testAudio.preload = 'metadata';\n                        const url = stations[currentStationKey].stream + '?test=' + Date.now();\n                        testAudio.src = url;\n                        const start = Date.now();\n                        await new Promise((resolve, reject) => {\n                            const timer = setTimeout(() => reject(new Error('Timeout')), 5000);\n                            testAudio.oncanplay = () => { clearTimeout(timer); resolve(); };\n                            testAudio.onerror = () => { clearTimeout(timer); reject(testAudio.error || new Error('Load failed')); };\n                        });\n                        const ms = Date.now() - start;\n                        result.className = 'debug-test-result ok';\n                        result.textContent = `✅ Поток доступен (${ms}ms)`;\n                        this.log('success', `Audio test OK (${ms}ms)`);\n                    } catch (e) {\n                        result.className = 'debug-test-result err';\n                        result.textContent = `❌ Ошибка: ${e.message}`;\n                        this.log('error', `Audio test FAILED: ${e.message}`);\n                    }\n                });\n            }\n        };
 
-        // === CONSTELLATION VISUALIZER ===
-        const ConstellationViz = {
-            audioCtx: null, analyser: null, sourceNode: null,
-            init(audioElement) {
-                if (this.audioCtx) return true;
-                try {
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    this.audioCtx = new AudioContext();
-                    this.analyser = this.audioCtx.createAnalyser();
-                    this.analyser.fftSize = 2048;
-                    this.analyser.smoothingTimeConstant = 0.75;
-                    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-                    this.sourceNode = this.audioCtx.createMediaElementSource(audioElement);
-                    this.sourceNode.connect(this.analyser);
-                    this.analyser.connect(this.audioCtx.destination);
-                    this.nodes = Array.from({length:48}, ()=>({x:0,y:0,energy:0,targetY:0}));
-                    return true;
-                } catch(e) {
-                    Debug.add('error', 'ConstellationViz init: '+e.message);
-                    return false;
-                }
-            },
-            start() { /* ... без изменений, см. полный код выше */ },
-            stop() { /* ... */ },
-            cleanup() {
-                this.stop();
-                if (this.sourceNode) try { this.sourceNode.disconnect(); } catch(e) {}
-                if (this.analyser) try { this.analyser.disconnect(); } catch(e) {}
-                if (this.audioCtx && this.audioCtx.state !== 'closed') {
-                    this.audioCtx.close().catch(()=>{});
-                    this.audioCtx = null;
-                }
-                this.sourceNode = null;
-                this.analyser = null;
-            }
-        };
-        // (здесь полностью тот же код ConstellationViz, что и в прошлом ответе, для краткости опущен)
-        // ВАЖНО: вставьте его полностью из предыдущего полного HTML.
+        // ===============================\n        // 🎨 CONSTELLATION VISUALIZER (заменён на wavesurfer)\n        // ===============================\n        let wavesurfer = null;\n        let vizCanvas = null;\n        \n        function initWavesurfer() {\n            if (wavesurfer) return;\n            \n            vizCanvas = document.getElementById('viz-canvas');\n            \n            // Инициализация wavesurfer\n            wavesurfer = WaveSurfer.create({\n                container: '#viz-canvas',\n                waveColor: 'rgba(255, 255, 255, 0.7)',\n                progressColor: 'rgba(124, 58, 237, 0.8)',\n                cursorColor: 'rgba(124, 58, 237, 0.8)',\n                barWidth: 2,\n                barGap: 1,\n                barRadius: 2,\n                responsive: true,\n                height: 200,\n                normalize: true,\n                partialRender: true,\n                plugins: [\n                    WaveSurfer.Spectrogram.create({\n                        container: '#viz-canvas',\n                        labels: false,\n                        fftSamples: 2048,\n                        splitChannels: false,\n                        barHeight: 2,\n                        barGap: 1,\n                        colorMap: [\n                            [0, '#7c3aed'],\n                            [0.5, '#a78bfa'],\n                            [1, '#ffffff']\n                        ]\n                    })\n                ]\n            });\n            \n            // Настройка для потокового воспроизведения\n            wavesurfer.once('ready', () => {\n                Debug.log('success', '✅ Wavesurfer ready');\n                document.getElementById('viz-container').classList.add('active');\n            });\n            \n            wavesurfer.on('error', (e) => {\n                Debug.log('error', `❌ Wavesurfer error: ${e}`);\n            });\n            \n            wavesurfer.on('finish', () => {\n                Debug.log('info', '⏹ Playback finished');\n                document.getElementById('viz-container').classList.remove('active');\n            });\n            \n            Debug.log('info', '🌊 Wavesurfer initialized');\n        }
 
-        // === RADIO APP (исправленная версия) ===
-        const stations = {};
-        let currentStationKey = null;
-        const audio = document.getElementById('audio-player');
-        // ... остальные переменные и функции, идентично предыдущему ответу, но с важными изменениями:
+        // ===============================\n        // 📻 RADIO APP\n        // ===============================\n        const STREAM_URLS = {\n            liquid_drum: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3',\n            drum__bass: 'https://majesticradio.duckdns.org/listen/drum__bass/drumnbass.mp3',\n            psy_chill: 'https://majesticradio.duckdns.org/listen/psy_chill/psychill.mp3',\n            old_goa: 'https://majesticradio.duckdns.org/listen/old_goa/oldgoa.mp3',\n            progressive_psytrance: 'https://majesticradio.duckdns.org/listen/progressive_psytrance/psyprog.mp3',\n            psy_tech: 'https://majesticradio.duckdns.org/listen/psy_tech/psytech.mp3',\n            dark_room: 'https://majesticradio.duckdns.org/listen/dark_room/darkroot.mp3'\n        };\n        const BASE_URL = 'https://majesticradio.duckdns.org';\n        const STATION_IDS = ['liquid_drum','drum__bass','psy_chill','old_goa','progressive_psytrance','psy_tech','dark_room'];\n        const STATION_NAMES = { liquid_drum: 'Liquid Drum', drum__bass: 'Drum & Bass', psy_chill: 'Psy Chill', old_goa: 'Old Goa', progressive_psytrance: 'Progressive Psy', psy_tech: 'Psy Tech', dark_room: 'Dark Room' };\n\n        const audio = document.getElementById('audio-player');\n        const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');\n        const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');\n        const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');\n        const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');\n        const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');\n        const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current');\n        const progressDuration = document.getElementById('progress-duration');\n        const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');\n\n        let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;\n        let metadataInterval = null, progressInterval = null, errorTimeout = null;\n        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 }, stationsOpen = false;\n        let isProcessingPlay = false;\n        \n        const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E🎵%3C/text%3E%3C/svg%3E";
 
-        function switchStation(key, autoPlay=true) {
-            if (!stations[key]) return;
-            playbackStarted = false;
-            currentStationKey = key;
-            stopPlayback();
-            // Полный сброс контекста
-            ConstellationViz.cleanup();
-            audio.__captured = false;
-            setCoverArt(stations[key].art);
-            renderStationsList();
-            if (autoPlay) startPlayback(stations[key]);
-        }
+        function formatTime(s) { return (!s||s<0)?'0:00':`${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
+        function updateProgress(el,dur) { if(!dur||dur<=0) return progressContainer.classList.remove('active'); progressContainer.classList.add('active'); progressFill.style.width=`${Math.min(100,(el/dur)*100)}%`; progressCurrent.textContent=formatTime(el); progressDuration.textContent=formatTime(dur); }
+        function startProgressAnimation() { progressInterval&&clearInterval(progressInterval); progressInterval=setInterval(()=>{ if(!isPlaying||!trackData.duration)return; const el=trackData.elapsed+(Date.now()-trackData.lastUpdate)/1000; el<trackData.duration&&updateProgress(el,trackData.duration); },500); }
+        function stopProgressAnimation() { progressInterval&&clearInterval(progressInterval); progressInterval=null; progressContainer.classList.remove('active'); }
+        function updateStatus(state, msg) {\n            statusBadge.classList.remove('online','error','loading');\n            if (state === 'online') { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; }\n            else if (state === 'loading') { statusBadge.classList.add('loading'); statusBadge.innerHTML = `<span>${msg||'Загрузка...'}</span>`; }\n            else { statusBadge.innerHTML = `<span>${msg||'Оффлайн'}</span>`; }\n        }
+        function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
+        function openStations() { stationsOpen=true; stationsOverlay.classList.add('open'); burgerBtn.classList.add('active'); }
+        function closeStations() { stationsOpen=false; stationsOverlay.classList.remove('open'); burgerBtn.classList.remove('active'); }
+        function toggleStations() { stationsOpen?closeStations():openStations(); }
+        function renderStationsList() {\n            if(!stationsListEl)return; stationsListEl.innerHTML='';\n            Object.keys(stations).forEach(k=>{\n                const b=document.createElement('button');\n                b.className=`station-item${k===currentStationKey?' active':''}`;\n                b.innerHTML=`<span class="station-dot"></span><span>${stations[k].name}</span>`;\n                b.onclick=()=>{switchStation(k,true);closeStations();};\n                stationsListEl.appendChild(b);\n            });\n        }
+        function initStationsStatic() {\n            stations={};\n            STATION_IDS.forEach(id=>stations[id]={name:STATION_NAMES[id]||id,stream:STREAM_URLS[id],api:`${BASE_URL}/api/nowplaying/${id}`,art:DEFAULT_COVER_SVG});\n            renderStationsList(); currentStationKey=STATION_IDS[0]; setCoverArt(DEFAULT_COVER_SVG);\n        }
+        async function loadStationsBackground() {\n            await Promise.all(STATION_IDS.map(async id=>{\n                try{\n                    const c=new AbortController(),t=setTimeout(()=>c.abort(),3000);\n                    const r=await fetch(`${BASE_URL}/api/nowplaying/${id}`,{signal:c.signal}); clearTimeout(t);\n                    if(r.ok){\n                        const d=await r.json(); let a=DEFAULT_COVER_SVG;\n                        if(d.now_playing?.song?.art){a=d.now_playing.song.art;if(!a.startsWith('http'))a=BASE_URL+a;}\n                        else if(d.station?.front_art){a=d.station.front_art;if(!a.startsWith('http'))a=BASE_URL+a;}\n                        if(stations[id]){stations[id].name=d.station?.name||stations[id].name;stations[id].art=a;}\n                        if(id===currentStationKey)setCoverArt(a); renderStationsList();\n                    }\n                }catch(e){}\n            }));\n        }
+        function switchStation(key,autoPlay=true) {\n            if(!stations[key])return;\n            playbackStarted=false; currentStationKey=key; stopPlayback(); setCoverArt(stations[key].art); renderStationsList();\n            if(autoPlay)startPlayback(stations[key]);\n        }
+        function setCoverArt(url) {\n            if(!coverArt)return;\n            const img=new Image();\n            img.onload=()=>{coverArt.style.backgroundImage=`url('${url}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};\n            img.onerror=()=>{coverArt.style.backgroundImage=`url('${DEFAULT_COVER_SVG}')`;coverArt.querySelector('.cover-placeholder').style.display='none';};\n            img.src=url||DEFAULT_COVER_SVG;\n        }
 
-        function startPlayback(station) {
-            if (isProcessingPlay) return;
-            isProcessingPlay = true;
-            if (playTimeout) clearTimeout(playTimeout);
-            Debug.add('info', 'Start playback: '+station.name);
-            playbackStarted = false;
-            ConstellationViz.stop();
-            updateStatus('loading');
-            audio.src = `${station.stream}?t=${Date.now()}`;
-            audio.load();
+        // 🔥 ИНИЦИАЛИЗАЦИЯ ВИЗУАЛИЗАТОРА ПЕРЕД ВОСПРОИЗВЕДЕНИЕМ
+        function startVisualizer() {\n            if (!wavesurfer) {\n                initWavesurfer();\n                Debug.log('info', '🌊 Wavesurfer initialized for visualization');\n            }\n            // Передаём поток в wavesurfer\n            wavesurfer.load(currentStationKey ? stations[currentStationKey].stream : '');\n        }
+        function stopVisualizer() {\n            if (wavesurfer) {\n                wavesurfer.pause();\n                document.getElementById('viz-container').classList.remove('active');\n                Debug.log('info', '⏹ Wavesurfer visualization stopped');\n            }\n        }
 
-            // Инициализация контекста только если нет активного и аудио не захвачено
-            if (!ConstellationViz.audioCtx && !audio.__captured) {
-                const ok = ConstellationViz.init(audio);
-                if (ok) {
-                    audio.__captured = true;
-                    if (ConstellationViz.audioCtx.state === 'suspended') {
-                        ConstellationViz.audioCtx.resume();
-                    }
-                }
-            }
+        // 🔥 ИСПРАВЛЕННЫЙ START PLAYBACK ДЛЯ iOS
+        function startPlayback(station) {\n            if (isProcessingPlay) return;\n            isProcessingPlay = true;\n            \n            Debug.log('info', `🎵 Start playback: ${station.name}`);\n            playbackStarted = false;\n            stopVisualizer();\n            updateStatus('loading', 'Подключение...');\n            \n            // Убираем всё, что может мешать: очистка предыдущих потоков\n            if (wavesurfer) {\n                wavesurfer.destroy();\n                wavesurfer = null;\n            }\n            \n            // Инициализируем визуализатор перед воспроизведением\n            startVisualizer();\n            \n            // Загружаем поток\n            wavesurfer.load(station.stream);\n            \n            // Запускаем воспроизведение\n            wavesurfer.once('ready', () => {\n                wavesurfer.play().then(() => {\n                    Debug.log('success', '✅ Playback started via wavesurfer');\n                    isPlaying = true;\n                    playbackStarted = true;\n                    updatePlayButton();\n                    updateStatus('online');\n                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);\n                    fetchMetadata(station.api);\n                    metadataInterval && clearInterval(metadataInterval);\n                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);\n                    isProcessingPlay = false;\n                }).catch(err => {\n                    Debug.log('error', `❌ Play failed: ${err.name} - ${err.message}`);\n                    updateStatus('error', err.name === 'NotAllowedError' ? 'Нажмите ещё раз' : 'Ошибка подключения');\n                    isPlaying = false;\n                    playbackStarted = false;\n                    updatePlayButton();\n                    isProcessingPlay = false;\n                });\n            });\n            \n            // Защита от зависаний\n            errorTimeout = setTimeout(() => {\n                if (!isPlaying && wavesurfer && !wavesurfer.isReady) {\n                    Debug.log('warn', '⏱️ Wavesurfer timeout');\n                    updateStatus('error', 'Таймаут подключения');\n                    isProcessingPlay = false;\n                }\n            }, 10000);\n        }
 
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    isPlaying = true; playbackStarted = true;
-                    updatePlayButton();
-                    updateStatus('online');
-                    ConstellationViz.start();
-                    fetchMetadata(station.api);
-                    metadataInterval = setInterval(() => fetchMetadata(station.api), 10000);
-                    setTimeout(() => { isProcessingPlay = false; }, 1000);
-                }).catch(err => {
-                    Debug.add('error', 'Play failed: '+err.name);
-                    updateStatus('error');
-                    isPlaying = false; playbackStarted = false;
-                    updatePlayButton();
-                    ConstellationViz.stop();
-                    isProcessingPlay = false;
-                });
-            }
-            playTimeout = setTimeout(() => {
-                if (!isPlaying && !audio.paused) {
-                    Debug.add('warn', 'Play timeout');
-                    audio.pause(); audio.src = '';
-                    updateStatus('error', 'timeout');
-                    isProcessingPlay = false;
-                }
-            }, 10000);
-        }
+        function stopPlayback() {\n            if (errorTimeout) clearTimeout(errorTimeout);\n            if (wavesurfer) {\n                wavesurfer.pause();\n                wavesurfer.destroy();\n                wavesurfer = null;\n            }\n            audio.pause();\n            audio.src = '';\n            isPlaying = false;\n            playbackStarted = false;\n            updatePlayButton();\n            stopVisualizer();\n            stopProgressAnimation();\n            updateStatus('offline');\n            metadataInterval && clearInterval(metadataInterval);\n            trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };\n        }
 
-        // ... все остальные функции и инициализация
-        // Вставьте их полностью из предыдущего исправленного HTML, заменив только Debug.add на Debug.add
+        function togglePlay() {\n            if (!currentStationKey || !stations[currentStationKey]) return;\n            isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey]);\n        }
+        \n        function updatePlayButton() {\n            playIcon.style.display = isPlaying ? 'none' : 'block';\n            pauseIcon.style.display = isPlaying ? 'block' : 'none';\n            coverArt.classList.toggle('playing', isPlaying);\n        }
+
+        async function fetchMetadata(apiUrl) {\n            if (!isPlaying) return;\n            try {\n                const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });\n                if (!response.ok) return;\n                const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};\n                if (song) {\n                    trackTitleEl.textContent = song.title || 'Unknown Track';\n                    trackArtistEl.textContent = song.artist || 'Unknown Artist';\n                    trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');\n                    if (song.art?.trim()) { let artUrl = song.art; if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl; setCoverArt(artUrl); }\n                }\n                if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }\n            } catch (e) { Debug.log('warn', 'Metadata fetch failed'); }\n        }
+
+        function setupEventListeners() {\n            playBtn.addEventListener('click', togglePlay);\n            prevBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i<=0?k.length-1:i-1]); });\n            nextBtn.addEventListener('click', () => { const k=Object.keys(stations); if(!k.length)return; const i=k.indexOf(currentStationKey); switchStation(k[i>=k.length-1?0:i+1]); });\n            burgerBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleStations(); });\n            stationsOverlay.addEventListener('click', (e) => { if (e.target === stationsOverlay) closeStations(); });\n            \n            let touchStartX=0,touchStartY=0,isSwiping=false;\n            stationsOverlay.addEventListener('touchstart',(e)=>{touchStartX=e.changedTouches[0].screenX;touchStartY=e.changedTouches[0].screenY;isSwiping=true;},{passive:true});\n            stationsOverlay.addEventListener('touchend',(e)=>{if(!isSwiping)return;isSwiping=false;const dx=e.changedTouches[0].screenX-touchStartX,dy=e.changedTouches[0].screenY-touchStartY;if(dy>80&&Math.abs(dx)<0.5*Math.abs(dy))closeStations();},{passive:true});\n            \n            let globalStartX=0,globalStartY=0;\n            document.addEventListener('touchstart',(e)=>{globalStartX=e.changedTouches[0].screenX;globalStartY=e.changedTouches[0].screenY;},{passive:true});\n            document.addEventListener('touchend',(e)=>{if(stationsOpen)return;const dx=globalStartX-e.changedTouches[0].screenX,dy=e.changedTouches[0].screenY-globalStartY;if(Math.abs(dx)>50&&Math.abs(dx)>1.5*Math.abs(dy))(dx>0?nextBtn.click():prevBtn.click());},{passive:true});\n            \n            audio.addEventListener('error', (e) => {\n                const err = audio.error;\n                Debug.log('error', `🔊 Audio error: code=${err?.code}`);\n                if (isPlaying) { updateStatus('error', 'Ошибка потока'); stopPlayback(); }\n            });\n            audio.addEventListener('playing', () => {\n                playbackStarted = true;\n                updateStatus('online');\n                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);\n            });\n        }
+
+        // === INIT ===\n        try {\n            Debug.init();\n            initPlaceholders();\n            setupEventListeners();\n            initStationsStatic();\n            loadStationsBackground();\n        } catch (e) { Debug.log('error', 'Init Error: ' + e.message); }
+
+        // Telegram Web App\n        if (window.Telegram && window.Telegram.WebApp) {\n            try {\n                const tg = window.Telegram.WebApp;\n                tg.ready(); tg.expand && tg.expand();\n            } catch (e) {}\n        }
+
+        // Cleanup\n        window.addEventListener('beforeunload', () => { stopPlayback(); });\n        window.addEventListener('resize', () => {\n            Debug.updateAudioState();\n        });
+
+        window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, Debug };
     </script>
 </body>
 </html>
+
