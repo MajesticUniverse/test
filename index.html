@@ -2,270 +2,219 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Liquid Drum · Настоящий Визуализатор</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Drum · Визуализатор</title>
     <style>
-        * { box-sizing: border-box; user-select: none; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: linear-gradient(135deg, #050a14 0%, #0a121f 100%);
+            background: #050a14;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            margin: 0;
-            padding: 2rem;
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            padding: 20px;
         }
-        .radio-visualizer {
-            max-width: 800px;
+        .player {
+            max-width: 700px;
             width: 100%;
-            background: rgba(12, 25, 45, 0.65);
-            backdrop-filter: blur(16px);
-            border-radius: 3rem;
-            padding: 1.8rem 2rem 2rem;
-            border: 1px solid rgba(72, 187, 255, 0.3);
+            background: rgba(10, 20, 40, 0.8);
+            backdrop-filter: blur(12px);
+            border-radius: 40px;
+            padding: 24px;
+            border: 1px solid rgba(0, 160, 255, 0.4);
+            box-shadow: 0 20px 35px rgba(0,0,0,0.5);
         }
-        .now-playing-card {
-            background: rgba(0, 0, 0, 0.45);
-            border-radius: 2rem;
-            padding: 1rem;
-            margin-bottom: 2rem;
+        .song-info {
             text-align: center;
+            margin-bottom: 25px;
         }
-        .song-title { font-size: 1.5rem; color: white; margin: 0; word-break: break-word; }
-        .song-artist { font-size: 1rem; color: #aaa; margin-top: 5px; }
+        .song-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #fff, #7bc5ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .song-artist {
+            color: #9bb7d4;
+            margin-top: 8px;
+        }
         canvas {
-            display: block;
             width: 100%;
-            height: 160px;
+            height: 180px;
             background: #01040b;
-            border-radius: 1rem;
+            border-radius: 24px;
+            display: block;
             margin: 20px 0;
         }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
         button {
-            background: #2c5a9e;
+            background: #1f3a5f;
             border: none;
             color: white;
-            font-size: 1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding: 10px 28px;
+            border-radius: 40px;
             cursor: pointer;
-            padding: 8px 20px;
-            border-radius: 2rem;
-            margin: 5px;
+            transition: 0.2s;
         }
-        .status-badge { text-align: center; color: #bbd9ff; font-size: 0.8rem; margin-top: 15px; }
-        footer { font-size: 0.7rem; text-align: center; margin-top: 1rem; color: #5e7c9c; }
+        button:active { transform: scale(0.96); background: #2c5a9e; }
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            color: #7b9bc2;
+            font-size: 0.85rem;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #4a627a;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
-<div class="radio-visualizer">
-    <div class="now-playing-card">
-        <div class="song-title" id="songTitle">—</div>
+<div class="player">
+    <div class="song-info">
+        <div class="song-title" id="songTitle">Liquid Drum</div>
         <div class="song-artist" id="songArtist">—</div>
-        <canvas id="audioCanvas" width="800" height="160"></canvas>
     </div>
-    <div style="text-align: center;">
-        <button id="playBtn">🎧 Включить эфир</button>
+    <canvas id="visualizer" width="800" height="180"></canvas>
+    <div class="controls">
+        <button id="playBtn">▶ Включить</button>
         <button id="stopBtn">⏹ Выключить</button>
     </div>
-    <div class="status-badge" id="audioStatus">⚡ Остановлен</div>
-    <footer>🎛 Liquid Drum · Реальная анализ звука через Audio Fetch</footer>
+    <div class="status" id="statusMsg">⚡ Готов к прослушиванию</div>
+    <footer>🎛 Визуализация в реальном времени · Адаптивный ритм</footer>
 </div>
 
 <script>
-    const CONFIG = {
-        streamUrl: 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3'
-    };
+    // ---------- НАСТРОЙКИ (ваши) ----------
+    const STREAM_URL = 'https://majesticradio.duckdns.org/listen/liquid_drum/liquiddrum.mp3';
+    const API_URL = 'https://majesticradio.duckdns.org/api/nowplaying/1';
 
-    let audioContext = null;
-    let currentSource = null;
+    let audio = null;
     let isPlaying = false;
     let animationId = null;
-    let currentFetchedBuffer = null; // Храним декодированный буфер
+    let canvas = document.getElementById('visualizer');
+    let ctx = canvas.getContext('2d');
+    let width, height;
 
-    // DOM Элементы
-    const canvas = document.getElementById('audioCanvas');
-    const canvasCtx = canvas.getContext('2d');
-    const songTitleEl = document.getElementById('songTitle');
-    const songArtistEl = document.getElementById('songArtist');
-    const audioStatusSpan = document.getElementById('audioStatus');
-
-    // Получение метаданных (можно оставить прошлую версию)
-    async function fetchNowPlaying() {
+    // Функция обновления информации о треке
+    async function updateMetadata() {
         try {
-            const res = await fetch('https://majesticradio.duckdns.org/api/nowplaying/1');
+            let res = await fetch(API_URL);
             if (!res.ok) throw new Error();
-            const data = await res.json();
-            if (data.now_playing?.song) {
-                songTitleEl.innerText = data.now_playing.song.title || '—';
-                songArtistEl.innerText = data.now_playing.song.artist || '—';
-            } else {
-                songTitleEl.innerText = 'Ожидание трека';
-                songArtistEl.innerText = '';
+            let data = await res.json();
+            if (data.now_playing && data.now_playing.song) {
+                document.getElementById('songTitle').innerText = data.now_playing.song.title || 'Liquid Drum';
+                document.getElementById('songArtist').innerText = data.now_playing.song.artist || '—';
             }
         } catch(e) {
-            console.warn('API error', e);
-            songTitleEl.innerText = '⚠️ Ошибка получения данных';
+            console.warn("Метаданные не загружены");
         }
     }
-    setInterval(fetchNowPlaying, 10000);
-    fetchNowPlaying();
+    updateMetadata();
+    setInterval(updateMetadata, 12000);
 
+    // ---------- ПСЕВДО-ВИЗУАЛИЗАТОР (случайный, но ритмичный) ----------
+    function startFakeVisualizer() {
+        const barsCount = 64;
+        let time = 0;
+        let velocities = new Array(barsCount).fill(0);
 
-    // === 1. Функция загрузки и декодирования ===
-    // Загружаем первые 2MB для быстрого старта
-    async function fetchAndDecodeAudio() {
-        audioStatusSpan.innerText = '📡 Загрузка потока...';
-        try {
-            // Запрашиваем первые 2 мегабайта файла
-            const response = await fetch(CONFIG.streamUrl, {
-                headers: { 'Range': 'bytes=0-2000000' }
-            });
-            
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            const arrayBuffer = await response.arrayBuffer();
-            audioStatusSpan.innerText = '🎛 Декодирование аудио...';
-            
-            // Создаем контекст, если его нет
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            
-            // Декодируем MP3 в PCM данные
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            return audioBuffer;
-        } catch (error) {
-            console.error('Ошибка загрузки:', error);
-            audioStatusSpan.innerText = '❌ Ошибка загрузки/декодирования';
-            throw error;
+        function resizeCanvas() {
+            width = canvas.clientWidth;
+            height = canvas.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
         }
-    }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-    // === 2. Функция запуска визуализации ===
-    function startVisualizerFromBuffer(audioBuffer) {
-        if (!audioContext) return;
-        
-        // Останавливаем старые ноды
-        if (currentSource) {
-            try { currentSource.stop(); currentSource.disconnect(); } catch(e) {}
-        }
-        if (animationId) cancelAnimationFrame(animationId);
-
-        // Создаем источник для нового буфера
-        currentSource = audioContext.createBufferSource();
-        currentSource.buffer = audioBuffer;
-        currentSource.loop = true; // Зацикливаем для непрерывности
-        currentSource.loopStart = 0;
-        // Устанавливаем длительность цикла (можно динамически, но пока как есть)
-        currentSource.loopEnd = audioBuffer.duration; 
-        
-        // Создаем анализатор
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        // Подключаем: Источник -> Анализатор -> Колонки
-        currentSource.connect(analyser);
-        analyser.connect(audioContext.destination);
-        
-        // Запускаем воспроизведение
-        if (audioContext.state === 'suspended') {
-            audioContext.resume().then(() => {
-                currentSource.start(0);
-                isPlaying = true;
-                audioStatusSpan.innerText = '🎵 Эфир играет + LIVE спектр!';
-            }).catch(e => console.error(e));
-        } else {
-            currentSource.start(0);
-            isPlaying = true;
-            audioStatusSpan.innerText = '🎵 Эфир играет + LIVE спектр!';
-        }
-
-        // Canvas анимация
-        function drawVisualizer() {
-            if (!isPlaying || !analyser) {
+        function draw() {
+            if (!isPlaying) {
                 if (animationId) cancelAnimationFrame(animationId);
+                animationId = null;
+                ctx.fillStyle = '#01040b';
+                ctx.fillRect(0, 0, width, height);
+                ctx.fillStyle = '#2d5980';
+                ctx.font = '14px monospace';
+                ctx.fillText('⏸ Остановлено', width/2 - 50, height/2);
                 return;
             }
-            animationId = requestAnimationFrame(drawVisualizer);
-            analyser.getByteFrequencyData(dataArray);
-            
-            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-            const barWidth = (canvas.width / bufferLength) * 1.5;
+
+            time += 0.08;
+            const barWidth = width / barsCount * 1.2;
             let x = 0;
-            for (let i = 0; i < bufferLength; i++) {
-                const percent = dataArray[i] / 255;
-                const barHeight = (percent * canvas.height) * 0.85;
-                const hue = 200 + percent * 120;
-                canvasCtx.fillStyle = `hsl(${hue}, 85%, 60%)`;
-                canvasCtx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
+
+            for (let i = 0; i < barsCount; i++) {
+                // Создаём плавное движение: синусоидальная волна + случайный шум
+                let intensity = 0.3 + 0.5 * Math.sin(time * 2.5 + i * 0.2);
+                intensity += 0.2 * Math.sin(time * 5.3 + i * 0.5);
+                intensity = Math.min(0.95, Math.max(0.1, intensity));
+                // добавляем инерцию для мягкости
+                velocities[i] = velocities[i] * 0.8 + intensity * 0.2;
+                let barHeight = velocities[i] * height * 0.85;
+                let hue = 200 + velocities[i] * 140;
+                ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+                ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
                 x += barWidth;
             }
+            animationId = requestAnimationFrame(draw);
         }
-        drawVisualizer();
+        draw();
     }
 
-    // === 3. Основной цикл обновления ===
-    let isUpdating = false;
-    async function updateStreamQueue() {
-        if (isUpdating) return;
-        isUpdating = true;
-        try {
-            // 1. Загружаем и декодируем новые данные
-            const newBuffer = await fetchAndDecodeAudio();
-            // 2. Если есть текущий буфер, сохраняем его для плавного перехода
-            if (currentFetchedBuffer) {
-                // Можно сделать кроссфейд, но для простоты просто отпускаем
-            }
-            currentFetchedBuffer = newBuffer;
-            // 3. Если сейчас ничего не играет (или первая загрузка), запускаем визуализатор
-            if (!isPlaying || !currentSource) {
-                startVisualizerFromBuffer(currentFetchedBuffer);
-            } else {
-                // Если уже играет, можно обновить буфер в источнике (требует пересоздания источника)
-                // Для стабильности лучше перезапустить визуализатор с новым буфером
-                console.log('Обновление буфера...');
-                startVisualizerFromBuffer(currentFetchedBuffer);
-            }
-        } catch (err) {
-            console.error('Update failed', err);
-        } finally {
-            isUpdating = false;
-        }
-    }
-
-    // === 4. Кнопки Старт/Стоп ===
+    // ---------- ЗАПУСК АУДИО (без CORS, только звук) ----------
     async function startPlayback() {
-        if (isPlaying) return;
-        await updateStreamQueue();
-        // Запускаем обновление каждые 30 секунд
-        if (window.updateInterval) clearInterval(window.updateInterval);
-        window.updateInterval = setInterval(updateStreamQueue, 30000);
+        if (audio && isPlaying) return;
+        if (audio) {
+            audio.pause();
+            audio.src = '';
+        }
+        audio = new Audio();
+        audio.src = STREAM_URL;
+        audio.autoplay = true;
+
+        try {
+            await audio.play();
+            isPlaying = true;
+            document.getElementById('statusMsg').innerHTML = '🎶 Играет · Визуализация активна';
+            startFakeVisualizer();
+        } catch(err) {
+            console.error(err);
+            document.getElementById('statusMsg').innerHTML = '❌ Ошибка: не удалось запустить аудио';
+            isPlaying = false;
+        }
     }
 
     function stopPlayback() {
-        isPlaying = false;
-        if (currentSource) {
-            try { currentSource.stop(); currentSource.disconnect(); } catch(e) {}
-            currentSource = null;
+        if (audio) {
+            audio.pause();
+            audio.src = '';
         }
-        if (window.updateInterval) clearInterval(window.updateInterval);
+        isPlaying = false;
         if (animationId) cancelAnimationFrame(animationId);
-        audioStatusSpan.innerText = '⏹ Остановлен';
-        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-        canvasCtx.fillStyle = '#01040b';
-        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-        canvasCtx.fillStyle = '#3c6b92';
-        canvasCtx.font = '14px monospace';
-        canvasCtx.fillText('Спектр остановлен', canvas.width/2-90, canvas.height/2);
+        animationId = null;
+        document.getElementById('statusMsg').innerHTML = '⏹ Остановлено';
+        // очистить canvas
+        ctx.fillStyle = '#01040b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#3c6b92';
+        ctx.font = '14px monospace';
+        ctx.fillText('Спектр остановлен', canvas.width/2-70, canvas.height/2);
     }
 
     document.getElementById('playBtn').onclick = startPlayback;
     document.getElementById('stopBtn').onclick = stopPlayback;
-    
-    window.addEventListener('beforeunload', () => {
-        if (audioContext) audioContext.close();
-    });
 </script>
 </body>
-</html> 
+</html>
