@@ -1,198 +1,263 @@
 <!DOCTYPE html>
+
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Majestic Radio</title>
-    <!-- мета-теги и стили без изменений, оставлены как в оригинале -->
-    <!-- ... ВСТАВЬТЕ ВЕСЬ БЛОК <style> ИЗ ВАШЕГО КОДА ... -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Majestic Radio PRO+</title>
+
+<style>
+body {
+  margin:0;
+  font-family:Arial;
+  background:#0f0a1f;
+  color:#fff;
+  display:flex;
+  justify-content:center;
+}
+
+.app {
+  width:100%;
+  max-width:420px;
+  padding:15px;
+}
+
+.cover {
+  width:100%;
+  aspect-ratio:1;
+  border-radius:16px;
+  background:#222;
+  background-size:cover;
+  background-position:center;
+  margin-bottom:10px;
+  transition:.4s;
+}
+
+.title { font-size:20px; font-weight:bold; }
+.artist { opacity:.7; margin-bottom:10px; }
+
+.controls button {
+  padding:10px;
+  margin:5px;
+  border:none;
+  border-radius:10px;
+  background:#6d28d9;
+  color:#fff;
+}
+
+.stations, .history {
+  margin-top:15px;
+}
+
+.item {
+  padding:10px;
+  background:#1c1433;
+  border-radius:10px;
+  margin-bottom:5px;
+  cursor:pointer;
+}
+
+.item.active { background:#6d28d9; }
+
+.fav { float:right; cursor:pointer; }
+
+.volume {
+  width:100%;
+}
+</style>
+
 </head>
 <body>
-    <!-- HTML-разметка без изменений -->
-    <!-- ... ВСТАВЬТЕ ВЕСЬ БЛОК <body> ИЗ ВАШЕГО КОДА ... -->
 
-    <script>
-        // ========== ВИЗУАЛИЗАТОР (БЕЗ ИЗМЕНЕНИЙ) ==========
-        // ... весь код визуализатора ...
+<div class="app">
 
-        // ==========================================
-        // РАДИО‑ЯДРО И ИСТОРИЯ (ИСПРАВЛЕНО)
-        // ==========================================
-        const BASE_URL = 'https://majesticradio.duckdns.org';
-        
-        // *** ИСПРАВЛЕНИЕ: ключ drum_bass без двойного подчёркивания ***
-        const HARDCODED_STREAMS = {
-            liquid_drum: { name: 'Liquid Drum', stream: `${BASE_URL}/listen/liquid_drum/liquiddrum.mp3` },
-            drum_bass:   { name: 'Drum & Bass',   stream: `${BASE_URL}/listen/drum_bass/drumnbass.mp3` },   // ← было drum__bass
-            psy_chill:   { name: 'Psy Chill',     stream: `${BASE_URL}/listen/psy_chill/psychill.mp3` },
-            old_goa:     { name: 'Old Goa',       stream: `${BASE_URL}/listen/old_goa/oldgoa.mp3` },
-            progressive_psytrance: { name: 'Progressive Psy', stream: `${BASE_URL}/listen/progressive_psytrance/psyprog.mp3` },
-            psy_tech:    { name: 'Psy Tech',      stream: `${BASE_URL}/listen/psy_tech/psytech.mp3` },
-            dark_room:   { name: 'Dark Room',     stream: `${BASE_URL}/listen/dark_room/darkroot.mp3` }
-        };
+<div id="cover" class="cover"></div>
+<div id="title">—</div>
+<div id="artist">—</div>
 
-        const DEFAULT_COVER_SVG = "image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%237c3aed'/%3E%3Cstop offset='100%25' style='stop-color:%23a78bfa'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='300' height='300' fill='url(%23g)'/%3E%3Ctext x='150' y='160' text-anchor='middle' font-family='Arial' font-size='80' fill='white' opacity='0.6'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E";
+<div class="controls">
+  <button onclick="prev()">◀</button>
+  <button onclick="toggle()">Play</button>
+  <button onclick="next()">▶</button>
+</div>
 
-        // DOM-элементы (без изменений)
-        const audio = document.getElementById('audio-player');
-        const playBtn = document.getElementById('play-btn'), prevBtn = document.getElementById('prev-btn'), nextBtn = document.getElementById('next-btn');
-        const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
-        const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
-        const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');
-        const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');
-        const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
-        const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
-        const historyBtn = document.getElementById('history-btn'), historyOverlay = document.getElementById('history-overlay');
-        const historyList = document.getElementById('history-list'), historyEmpty = document.getElementById('history-empty');
+<input type="range" min="0" max="1" step="0.01" id="volume" class="volume">
 
-        let stations = {}, currentStationKey = null, isPlaying = false, playbackStarted = false;
-        let metadataInterval = null, progressInterval = null, errorTimeout = null;
-        let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
-        let stationsOpen = false, historyOpen = false;
-        let stationHistories = {};
-        let stationHistoryLoaded = {};
+<h3>📻 Станции</h3>
+<div id="stations" class="stations"></div>
 
-        // Вспомогательные функции (без изменений)
-        function formatTime(seconds) { /* ... */ }
-        function formatTimeAgo(ts) { /* ... */ }
-        function updateStatus(on) { /* ... */ }
-        function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
-        function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
+<h3>🎶 История</h3>
+<div id="history" class="history"></div>
 
-        // Загрузка станций через API (ключ теперь формируется правильно)
-        async function loadStationsFromAPI() {
-            try {
-                const ctrl = new AbortController();
-                setTimeout(() => ctrl.abort(), 5000);
-                const res = await fetch(`${BASE_URL}/api/stations`, { signal: ctrl.signal });
-                if (!res.ok) throw new Error('API error');
-                const data = await res.json();
-                const arr = Array.isArray(data) ? data : data.stations || [];
-                if (arr.length === 0) throw new Error('No stations');
-                
-                stations = {}; stationHistories = {}; stationHistoryLoaded = {};
-                arr.forEach(st => {
-                    const id = st.short_name || st.slug || st.name?.toLowerCase().replace(/\s+/g, '_');
-                    if (!id) return;
-                    let streamUrl = st.mounts?.length ? st.mounts[0].url : (st.url || `${BASE_URL}/listen/${id}/${id}.mp3`);
-                    stations[id] = { name: st.name, stream: streamUrl, api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
-                    stationHistories[id] = [];
-                    stationHistoryLoaded[id] = false;
-                });
-                if (Object.keys(stations).length > 0) {
-                    if (!currentStationKey) currentStationKey = Object.keys(stations)[0];
-                    renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
-                    return true;
-                }
-            } catch (e) { console.log('📻 Stations API fallback:', e.message); }
-            return false;
-        }
+</div>
 
-        // Фолбэк с исправленным ключом drum_bass
-        function initFallbackStations() {
-            stations = {}; stationHistories = {}; stationHistoryLoaded = {};
-            Object.entries(HARDCODED_STREAMS).forEach(([id, st]) => {
-                stations[id] = { name: st.name, stream: st.stream, api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
-                stationHistories[id] = [];
-                stationHistoryLoaded[id] = false;
-            });
-            if (!currentStationKey) currentStationKey = Object.keys(stations)[0];
-            renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
-        }
+<audio id="audio"></audio>
 
-        // Предзагрузка данных всех станций
-        async function loadNowPlayingForAll() {
-            const keys = Object.keys(stations);
-            if (keys.length === 0) return;
+<script>
+const BASE = "https://majesticradio.duckdns.org";
 
-            await Promise.all(keys.map(async (sid) => {
-                try {
-                    const ctrl = new AbortController();
-                    setTimeout(() => ctrl.abort(), 3000);
-                    const res = await fetch(`${stations[sid].api}?r=${Math.random()}`, { signal: ctrl.signal });
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    
-                    let artUrl = DEFAULT_COVER_SVG;
-                    if (data.now_playing?.song?.art?.trim()) 
-                        artUrl = resolveArtUrl(data.now_playing.song.art);
-                    else if (data.station?.front_art?.trim()) 
-                        artUrl = resolveArtUrl(data.station.front_art);
-                    
-                    stations[sid].art = artUrl;
-                    if (data.station?.name) stations[sid].name = data.station.name;
-                    if (sid === currentStationKey) setCoverArt(artUrl);
-                    
-                    parseAndSaveHistory(sid, data);
-                    stationHistoryLoaded[sid] = true;
-                } catch (e) { console.warn(`Failed to load info for ${sid}`, e); }
-            }));
-        }
+const STATIONS = {
+  liquid_drum: { name:"Liquid Drum", stream:"/listen/liquid_drum/liquiddrum.mp3" },
+  drum_bass: { name:"Drum & Bass", stream:"/listen/drum_bass/drumnbass.mp3" },
+  psy_chill: { name:"Psy Chill", stream:"/listen/psy_chill/psychill.mp3" },
+  old_goa: { name:"Old Goa", stream:"/listen/old_goa/oldgoa.mp3" },
+  progressive_psytrance: { name:"Progressive Psy", stream:"/listen/progressive_psytrance/psyprog.mp3" },
+  psy_tech: { name:"Psy Tech", stream:"/listen/psy_tech/psytech.mp3" },
+  dark_room: { name:"Dark Room", stream:"/listen/dark_room/darkroot.mp3" }
+};
 
-        // ... парсинг истории, рендер станций, открытие/закрытие оверлеев без изменений ...
-        // (все следующие функции до fetchMetadata оставлены как есть)
+const keys = Object.keys(STATIONS);
 
-        // *** УЛУЧШЕННАЯ ЗАГРУЗКА МЕТАДАННЫХ ***
-        async function fetchMetadata(apiUrl) {
-            if (!isPlaying || !currentStationKey) return;
-            const st = stations[currentStationKey];
-            if (!st) return;
+let index = 0;
+let playing = false;
+let lastSongId = null;
+let interval = null;
+let cache = {};
+let favorites = JSON.parse(localStorage.getItem("fav") || "[]");
 
-            try {
-                const res = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
-                if (!res.ok) return;
-                const data = await res.json();
-                const nowPlaying = data?.now_playing;
-                const song = nowPlaying?.song;
-                const { duration, elapsed } = nowPlaying || {};
+const audio = document.getElementById("audio");
+const title = document.getElementById("title");
+const artist = document.getElementById("artist");
+const cover = document.getElementById("cover");
+const stationsDiv = document.getElementById("stations");
+const historyDiv = document.getElementById("history");
+const volume = document.getElementById("volume");
 
-                if (song) {
-                    // Есть трек — показываем полную информацию
-                    const title = song.title || 'Unknown Track';
-                    const artist = song.artist || 'Unknown Artist';
-                    const art = resolveArtUrl(song.art);
-                    
-                    trackTitleEl.textContent = title;
-                    trackArtistEl.textContent = artist;
-                    trackTitleEl.classList.remove('placeholder');
-                    trackArtistEl.classList.remove('placeholder');
-                    setCoverArt(art);
-                    addToStationHistory(currentStationKey, title, artist, art);
-                } else {
-                    // Нет трека — показываем название станции и сообщение
-                    trackTitleEl.textContent = st.name;
-                    trackArtistEl.textContent = 'Сейчас нет трека';
-                    trackTitleEl.classList.remove('placeholder');
-                    trackArtistEl.classList.remove('placeholder');
-                    // Обложка станции уже установлена, но если нет — ставим дефолт
-                    if (!st.art || st.art === DEFAULT_COVER_SVG) {
-                        // Попытка взять front_art станции из данных
-                        if (data.station?.front_art) {
-                            st.art = resolveArtUrl(data.station.front_art);
-                            setCoverArt(st.art);
-                        }
-                    }
-                }
-                
-                if (duration && elapsed !== undefined) {
-                    trackData = { duration, elapsed, lastUpdate: Date.now() };
-                    updateProgress(elapsed, duration);
-                    startProgressAnimation();
-                }
-            } catch (e) {}
-        }
+volume.value = 0.7;
+audio.volume = 0.7;
 
-        // ... остальной код (progress, история, события) без изменений ...
+volume.oninput = () => audio.volume = volume.value;
 
-        // Инициализация
-        try {
-            initPlaceholders();
-            setupEventListeners();
-            initFallbackStations();
-            loadStationsFromAPI().then(ok => { if (ok) loadNowPlayingForAll(); });
-        } catch (e) { console.error("Init Error:", e); }
+function setCover(url) {
+  if (!url) return;
+  if (cache[url]) return cover.style.backgroundImage = `url(${url})`;
 
-        // ... завершающие строки ...
-    </script>
+  const img = new Image();
+  img.onload = () => {
+    cache[url] = true;
+    cover.style.backgroundImage = `url(${url})`;
+  };
+  img.src = url;
+}
+
+function renderStations() {
+  stationsDiv.innerHTML = "";
+  keys.forEach((k,i)=>{
+    const div = document.createElement("div");
+    div.className = "item " + (i===index ? "active":"");
+
+    const fav = favorites.includes(k) ? "❤️" : "🤍";
+
+    div.innerHTML = STATIONS[k].name + 
+      `<span class="fav">${fav}</span>`;
+
+    div.onclick = () => {
+      index = i;
+      loadStation();
+      if (playing) play();
+      renderStations();
+    };
+
+    div.querySelector(".fav").onclick = (e)=>{
+      e.stopPropagation();
+      toggleFav(k);
+    };
+
+    stationsDiv.appendChild(div);
+  });
+}
+
+function toggleFav(k){
+  if (favorites.includes(k))
+    favorites = favorites.filter(x=>x!==k);
+  else
+    favorites.push(k);
+
+  localStorage.setItem("fav", JSON.stringify(favorites));
+  renderStations();
+}
+
+function renderHistory(list) {
+  historyDiv.innerHTML = "";
+  list.slice(0,5).forEach(s=>{
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerText = s.song.artist + " - " + s.song.title;
+    historyDiv.appendChild(div);
+  });
+}
+
+async function fetchNowPlaying() {
+  const key = keys[index];
+
+  try {
+    const res = await fetch(`${BASE}/api/nowplaying/${key}?t=${Date.now()}`);
+    const data = await res.json();
+
+    const song = data?.now_playing?.song;
+    if (!song) return;
+
+    if (song.id === lastSongId) return;
+    lastSongId = song.id;
+
+    title.innerText = song.title || "Unknown";
+    artist.innerText = song.artist || "Unknown";
+
+    let art = song.art;
+    if (art && !art.startsWith("http")) art = BASE + art;
+    setCover(art);
+
+    renderHistory(data.song_history || []);
+
+  } catch(e) {}
+}
+
+function startUpdates() {
+  clearInterval(interval);
+  interval = setInterval(fetchNowPlaying, 5000);
+}
+
+function loadStation() {
+  const key = keys[index];
+  audio.src = BASE + STATIONS[key].stream + "?t=" + Date.now();
+  lastSongId = null;
+  fetchNowPlaying();
+}
+
+function play() {
+  audio.play();
+  playing = true;
+  startUpdates();
+}
+
+function stop() {
+  audio.pause();
+  playing = false;
+  clearInterval(interval);
+}
+
+function toggle() {
+  playing ? stop() : (loadStation(), play());
+}
+
+function next() {
+  index = (index+1)%keys.length;
+  loadStation();
+  if (playing) play();
+  renderStations();
+}
+
+function prev() {
+  index = (index-1+keys.length)%keys.length;
+  loadStation();
+  if (playing) play();
+  renderStations();
+}
+
+// init
+renderStations();
+loadStation();
+</script>
+
 </body>
 </html>
