@@ -312,10 +312,10 @@
                         const data = await response.json();
                         let artUrl = DEFAULT_COVER_SVG;
                         if (data.now_playing?.song?.art?.trim()) {
-                            artUrl = data.now_playing.song.art;
+                            artUrl = data.now_playing.song.art.trim();
                             if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
                         } else if (data.station?.front_art?.trim()) {
-                            artUrl = data.station.front_art;
+                            artUrl = data.station.front_art.trim();
                             if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
                         }
                         if (stations[stationId]) {
@@ -616,7 +616,7 @@
                     trackTitleEl.textContent = song.title || 'Unknown Track'; 
                     trackArtistEl.textContent = song.artist || 'Unknown Artist';
                     trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art; artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
+                    if (song.art?.trim()) { let artUrl = song.art.trim(); artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
                 }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
             } catch (e) { /* silent */ }
