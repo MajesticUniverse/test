@@ -1,101 +1,118 @@
 <!DOCTYPE html>
-
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Majestic Radio</title>
-
+<title>Majestic Radio FIX</title>
 <style>
-body { background:#111; color:#fff; font-family:sans-serif; text-align:center; }
-.cover { width:250px; height:250px; margin:20px auto; background:#333; background-size:cover; }
+body{margin:0;background:#1a1030;color:#fff;font-family:sans-serif;text-align:center}
+#cover{width:260px;height:260px;margin:20px auto;background:#333;background-size:cover;border-radius:20px}
+button{padding:10px 20px;margin:10px}
 </style>
-
 </head>
-
 <body>
 
-<h1>Majestic Radio</h1>
-
-<div id="cover" class="cover"></div>
 <h2 id="title">—</h2>
 <p id="artist">—</p>
+<div id="cover"></div>
 
-<audio id="audio" controls></audio>
+<button onclick="prev()">◀</button>
+<button onclick="play()">PLAY</button>
+<button onclick="next()">▶</button>
+
+<audio id="audio" crossorigin="anonymous"></audio>
 
 <script>
-const BASE_URL = "https://majesticradio.duckdns.org";
+const BASE = "https://majesticradio.duckdns.org";
+
+const stations = [
+    {id:"liquid_drum", name:"Liquid Drum"},
+    {id:"drum_bass", name:"Drum & Bass"},
+    {id:"psy_chill", name:"Psy Chill"},
+    {id:"old_goa", name:"Old Goa"},
+    {id:"progressive_psytrance", name:"Progressive Psy"},
+    {id:"psy_tech", name:"Psy Tech"},
+    {id:"dark_room", name:"Dark Room"}
+];
+
+let index = 0;
+let playing = false;
+
 const audio = document.getElementById("audio");
-const cover = document.getElementById("cover");
 const titleEl = document.getElementById("title");
 const artistEl = document.getElementById("artist");
+const coverEl = document.getElementById("cover");
 
-let currentStation = "liquid_drum";
-let lastTrackId = "";
-let currentArt = "";
+function streamUrl(id){
+    return `${BASE}/listen/${id}/${id}.mp3?t=${Date.now()}`;
+}
 
-// старт
-audio.src = BASE_URL + "/listen/liquid_drum/liquiddrum.mp3";
-audio.play();
+function apiUrl(id){
+    return `${BASE}/api/nowplaying/${id}?t=${Date.now()}`;
+}
 
-setInterval(fetchMetadata, 5000);
+function setCover(url){
+    const img = new Image();
+    const noCache = url + "?v=" + Date.now();
 
-async function fetchMetadata() {
-    try {
-        const res = await fetch(`${BASE_URL}/api/nowplaying/${currentStation}?r=${Math.random()}`);
+    img.onload = ()=> coverEl.style.backgroundImage = `url('${noCache}')`;
+    img.onerror = ()=> coverEl.style.backgroundImage = "";
+
+    img.src = noCache;
+}
+
+async function updateMeta(){
+    const st = stations[index];
+
+    try{
+        const res = await fetch(apiUrl(st.id), {cache:"no-store"});
         const data = await res.json();
 
         const song = data.now_playing.song;
 
-        let title = song.title || "";
-        let artist = song.artist || "";
+        titleEl.textContent = song.title || "—";
+        artistEl.textContent = song.artist || "—";
 
-        // если приходит строкой "Artist - Title"
-        if (!artist && title.includes(" - ")) {
-            const parts = title.split(" - ");
-            artist = parts[0];
-            title = parts.slice(1).join(" - ");
-        }
+        let art = song.art || data.station?.front_art || "";
+        if(art && !art.startsWith("http")) art = BASE + art;
 
-        const trackId = artist + "_" + title;
+        setCover(art);
 
-        // обновляем только если новый трек
-        if (trackId !== lastTrackId) {
-            lastTrackId = trackId;
-
-            // плавная смена текста
-            titleEl.style.opacity = 0;
-            artistEl.style.opacity = 0;
-
-            setTimeout(() => {
-                titleEl.textContent = title || "Unknown";
-                artistEl.textContent = artist || "Unknown";
-
-                titleEl.style.opacity = 1;
-                artistEl.style.opacity = 1;
-            }, 150);
-
-            // обновление обложки без мигания
-            let art = song.art || "";
-            if (art && !art.startsWith("http")) {
-                art = BASE_URL + art;
-            }
-
-            if (art && art !== currentArt) {
-                currentArt = art;
-
-                const img = new Image();
-                img.onload = () => {
-                    cover.style.backgroundImage = `url(${art})`;
-                };
-                img.src = art;
-            }
-        }
-
-    } catch(e) {
-        console.log("error", e);
+    }catch(e){
+        console.log("meta error", e);
     }
 }
+
+function play(){
+    const st = stations[index];
+
+    if(!playing){
+        audio.src = streamUrl(st.id);
+        audio.play();
+        playing = true;
+
+        updateMeta(); // 🔥 сразу обновляем
+    }else{
+        audio.pause();
+        playing = false;
+    }
+}
+
+function next(){
+    index = (index + 1) % stations.length;
+    playing = false;
+    play();
+}
+
+function prev(){
+    index = (index - 1 + stations.length) % stations.length;
+    playing = false;
+    play();
+}
+
+// 🔥 автообновление (фикс основной проблемы)
+setInterval(updateMeta, 10000);
+
 </script>
 
 </body>
