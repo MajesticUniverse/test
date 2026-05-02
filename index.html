@@ -310,6 +310,7 @@
 
                     if (response.ok) {
                         const data = await response.json();
+                        console.log('[loadStationsBackground] Station:', stationId, 'Data:', data.now_playing?.song);
                         let artUrl = DEFAULT_COVER_SVG;
                         if (data.now_playing?.song?.art?.trim()) {
                             artUrl = data.now_playing.song.art.trim();
@@ -322,10 +323,15 @@
                             stations[stationId].name = data.station?.name || stations[stationId].name;
                             stations[stationId].art = artUrl;
                         }
-                        if (stationId === currentStationKey) setCoverArt(artUrl);
+                        if (stationId === currentStationKey) {
+                            console.log('[loadStationsBackground] Setting cover for current station:', stationId, artUrl);
+                            setCoverArt(artUrl);
+                        }
                         renderStationsList();
                     }
-                } catch (e) { /* Ошибки сети игнорируем */ }
+                } catch (e) { 
+                    console.error('[loadStationsBackground] Error for', stationId, e);
+                }
             });
 
             await Promise.all(promises);
@@ -371,12 +377,23 @@
 
         function setCoverArt(artUrl) {
             if (!coverArt) return;
-            if (artUrl?.trim()) {
+            const safeUrl = artUrl?.trim();
+            console.log('[setCoverArt] URL:', safeUrl);
+            if (safeUrl) {
                 const img = new Image();
-                img.onload = () => { coverArt.style.backgroundImage = `url('${artUrl}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.onerror = () => { coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; coverArt.querySelector('.cover-placeholder').style.display = 'none'; };
-                img.src = artUrl;
+                img.onload = () => { 
+                    console.log('[setCoverArt] Loaded successfully:', safeUrl);
+                    coverArt.style.backgroundImage = `url('${safeUrl}')`; 
+                    coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
+                };
+                img.onerror = (e) => { 
+                    console.error('[setCoverArt] Failed to load:', safeUrl, e);
+                    coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; 
+                    coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
+                };
+                img.src = safeUrl;
             } else { 
+                console.log('[setCoverArt] No URL provided, using default');
                 coverArt.style.backgroundImage = `url('${DEFAULT_COVER_SVG}')`; 
                 coverArt.querySelector('.cover-placeholder').style.display = 'none'; 
             }
@@ -612,14 +629,22 @@
                 const response = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
                 if (!response.ok) return;
                 const data = await response.json(), song = data?.now_playing?.song, { duration, elapsed } = data?.now_playing || {};
+                console.log('[fetchMetadata] Station:', apiUrl, 'Song:', song);
                 if (song) {
                     trackTitleEl.textContent = song.title || 'Unknown Track'; 
                     trackArtistEl.textContent = song.artist || 'Unknown Artist';
                     trackTitleEl.classList.remove('placeholder'); trackArtistEl.classList.remove('placeholder');
-                    if (song.art?.trim()) { let artUrl = song.art.trim(); artUrl.startsWith('http') || (artUrl = BASE_URL + artUrl); setCoverArt(artUrl); }
+                    if (song.art?.trim()) { 
+                        let artUrl = song.art.trim(); 
+                        if (!artUrl.startsWith('http')) artUrl = BASE_URL + artUrl;
+                        console.log('[fetchMetadata] Setting cover art:', artUrl);
+                        setCoverArt(artUrl); 
+                    }
                 }
                 if (duration && elapsed !== undefined) { trackData = { duration, elapsed, lastUpdate: Date.now() }; updateProgress(elapsed, duration); startProgressAnimation(); }
-            } catch (e) { /* silent */ }
+            } catch (e) { 
+                console.error('[fetchMetadata] Error:', e);
+            }
         }
 
         function setupEventListeners() {
