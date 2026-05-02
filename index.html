@@ -403,7 +403,7 @@
                 
                 stations = {}; stationHistories = {}; stationHistoryLoaded = {};
                 arr.forEach(st => {
-                    const id = st.short_name || st.slug || st.name?.toLowerCase().replace(/\s+/g, '_');
+                    const id = st.shortcode || st.short_name || st.slug || st.name?.toLowerCase().replace(/\s+/g, '_');
                     if (!id) return;
                     let streamUrl = st.mounts?.length ? st.mounts[0].url : (st.url || `${BASE_URL}/listen/${id}/${id}.mp3`);
                     stations[id] = { name: st.name, stream: streamUrl, api: `${BASE_URL}/api/nowplaying/${id}`, art: DEFAULT_COVER_SVG };
