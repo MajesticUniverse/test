@@ -1,0 +1,16 @@
+{
+  "name": "Majestic Radio",
+  "short_name": "Majestic",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#2d1f4e",
+  "theme_color": "#2d1f4e",
+  "icons": [
+    {
+      "src": "app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
