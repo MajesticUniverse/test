@@ -74,10 +74,11 @@
         .cover-art {
             width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
             display: flex; align-items: center; justify-content: center; font-size: 80px;
-            background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+            opacity: 1;
         }
+        .cover-art.is-fading { opacity: 0.35; }
         .cover-art.playing { animation: pulse-slow 6s ease-in-out infinite; }
-        .cover-placeholder { opacity: 0.6; color: white; }
         @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
         
         .viz-canvas-wrapper {
@@ -376,6 +377,7 @@
         let stationHistories = {};
         // Флаг загрузки истории для каждой станции
         let stationHistoryLoaded = {};
+        let lastCoverUrl = '';
 
         function formatTime(seconds) { if (!seconds || seconds < 0) return '0:00'; return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
         function formatTimeAgo(ts) { 
@@ -570,20 +572,36 @@
 
         function setCoverArt(artUrl) {
             if (!coverArt) return;
+            if ((artUrl || '') === lastCoverUrl) return;
+            lastCoverUrl = artUrl || '';
 
-            // Если арта нет — просто оставляем базовый CSS-градиент
-            if (!artUrl || !artUrl.trim()) {
+            const applyGradientFallback = () => {
                 coverArt.style.backgroundImage = '';
+            };
+
+            if (!artUrl || !artUrl.trim()) {
+                coverArt.classList.add('is-fading');
+                requestAnimationFrame(() => {
+                    applyGradientFallback();
+                    setTimeout(() => coverArt.classList.remove('is-fading'), 120);
+                });
                 return;
             }
 
             const img = new Image();
             img.onload = () => {
-                coverArt.style.backgroundImage = `url('${artUrl}')`;
+                coverArt.classList.add('is-fading');
+                setTimeout(() => {
+                    coverArt.style.backgroundImage = `url('${artUrl}')`;
+                    coverArt.classList.remove('is-fading');
+                }, 120);
             };
             img.onerror = () => {
-                // При ошибке — без эмодзи, просто стильный градиент из CSS
-                coverArt.style.backgroundImage = '';
+                coverArt.classList.add('is-fading');
+                setTimeout(() => {
+                    applyGradientFallback();
+                    coverArt.classList.remove('is-fading');
+                }, 120);
             };
             img.src = artUrl;
         }
