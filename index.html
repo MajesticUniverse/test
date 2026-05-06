@@ -2,220 +2,85 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Majestic Radio</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#1a1030">
+    <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
     
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-300-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
-    <link href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/index.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
     
     <style>
         :root {
-            --bg-primary: #2d1f4e;
-            --bg-secondary: #3d2a6e;
-            --bg-tertiary: #4a3580;
-            --bg-body: #1a1030;
-            --text-primary: #ffffff;
-            --text-secondary: #d4c4e8;
-            --text-muted: #9d8bbd;
-            --accent: #7c3aed;
-            --accent-light: #a78bfa;
-            --success: #10b981;
-            --error: #ef4444;
-            --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4);
-            --border-radius: 16px;
-            --border-radius-lg: 24px;
-            --btn-glass: rgba(255, 255, 255, 0.08);
-            --btn-glass-hover: rgba(255, 255, 255, 0.15);
-            --btn-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            --safe-top: env(safe-area-inset-top, 0px);
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-            --safe-left: env(safe-area-inset-left, 0px);
-            --safe-right: env(safe-area-inset-right, 0px);
+            --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
+            --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
+            --accent: #7c3aed; --accent-light: #a78bfa; --success: #10b981; --error: #ef4444;
+            --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4); --border-radius: 16px; --border-radius-lg: 24px;
+            --btn-glass: rgba(255, 255, 255, 0.08); --btn-glass-hover: rgba(255, 255, 255, 0.15); --btn-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-        }
-
-        /* Исправление: html и body занимают 100% высоты и имеют темный фон */
-        html {
-            height: 100%;
-            background-color: var(--bg-body); /* Темный цвет для safe-area снизу */
-        }
-
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: var(--text-primary);
-            min-height: 100dvh; /* Используем dvh для корректной высоты на мобильных */
-            overflow-x: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding-top: var(--safe-top);
-            padding-bottom: var(--safe-bottom); /* Отступ снизу для safe-area */
-            padding-left: var(--safe-left);
-            padding-right: var(--safe-right);
-            /* Градиент на весь экран, fixed чтобы не скроллился */
-            background: linear-gradient(135deg, var(--bg-body) 0%, #2d1f4e 50%, #3d2a6e 100%);
-            background-attachment: fixed;
+            background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
+            color: var(--text-primary); min-height: 100vh; min-height: -webkit-fill-available;
+            overflow-x: hidden; display: flex; justify-content: center; align-items: flex-start;
         }
-
-        .app-container {
-            width: 100%;
-            max-width: 480px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0;
-            flex: 1;
-        }
-
-        /* ===== Player Card ===== */
+        .app-container { width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
         .player-card {
-            width: 100%;
-            background: rgba(45, 31, 78, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: var(--border-radius-lg);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            box-shadow: var(--shadow-lg);
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            width: 100%; background: rgba(45, 31, 78, 0.6); backdrop-filter: blur(20px);
+            border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 24px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;
         }
-
-        /* ===== Header ===== */
-        .app-header {
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 16px;
-            margin-bottom: 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        .app-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .radio-title { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: 1px; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .header-btn {
+            width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60;
         }
+        .header-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.3); }
+        .header-btn svg { width: 18px; height: 18px; fill: currentColor; }
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .radio-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
-            letter-spacing: 1px;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .header-btn,
         .burger-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: var(--btn-glass);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            color: var(--text-primary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--btn-shadow);
-            position: relative;
-            z-index: 60;
+            width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow); position: relative; z-index: 60;
         }
-
-        .header-btn:hover,
-        .burger-btn:hover {
-            background: var(--btn-glass-hover);
-            transform: translateY(-1px);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .header-btn svg {
-            width: 18px;
-            height: 18px;
-            fill: currentColor;
-        }
-
+        .burger-btn:hover { background: var(--btn-glass-hover); transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.3); }
         .burger-btn .burger-line {
-            width: 18px;
-            height: 2px;
-            background: var(--text-primary);
-            border-radius: 1px;
-            position: absolute;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px;
+            position: absolute; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
         .burger-btn .burger-line:first-child { transform: translateY(-5px); }
-        .burger-btn .burger-line:nth-child(2) { }
         .burger-btn .burger-line:nth-child(3) { transform: translateY(5px); }
         .burger-btn.active .burger-line:first-child { transform: rotate(45deg); }
         .burger-btn.active .burger-line:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .burger-btn.active .burger-line:nth-child(3) { transform: rotate(-45deg); }
 
-        /* ===== Cover Art ===== */
         .cover-wrapper {
-            position: relative;
-            width: 100%;
-            margin-bottom: 20px;
-            border-radius: var(--border-radius);
-            overflow: hidden;
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5);
-            aspect-ratio: 1 / 1;
+            position: relative; width: 100%; margin-bottom: 24px; border-radius: var(--border-radius);
+            overflow: hidden; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.5); aspect-ratio: 1;
         }
-
         .cover-art {
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 80px;
-            background-size: cover;
-            background-position: center;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+            width: 100%; height: 100%; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+            display: flex; align-items: center; justify-content: center; font-size: 80px;
+            background-size: cover; background-position: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
             opacity: 1;
         }
-
         .cover-art.is-fading { opacity: 0.35; }
         .cover-art.playing { animation: pulse-slow 6s ease-in-out infinite; }
-
-        @keyframes pulse-slow {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-        }
-
-        /* ===== Visualizer ===== */
+        @keyframes pulse-slow { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+        
         .viz-canvas-wrapper {
             position: absolute;
             bottom: 0; left: 0; right: 0;
@@ -227,414 +92,102 @@
             border-radius: 0 0 var(--border-radius) var(--border-radius);
             overflow: hidden;
         }
-
         .viz-canvas-wrapper.active { opacity: 1; }
-
         #visualizer-canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
+            width: 100%; height: 100%; display: block;
         }
 
-        /* ===== Track Info ===== */
-        .track-info {
-            text-align: center;
-            margin-bottom: 16px;
-            min-height: 60px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-        }
-
-        .track-title {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 6px;
-            color: var(--text-primary);
-            line-height: 1.3;
-            min-height: 32px;
-            transition: opacity 0.2s ease;
-        }
-
+        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+        .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
         .track-title.placeholder { opacity: 0.5; }
-
-        .track-artist {
-            font-size: 16px;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-            font-weight: 400;
-            min-height: 24px;
-            transition: opacity 0.2s ease;
-        }
-
+        .track-artist { font-size: 17px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
         .track-artist.placeholder { opacity: 0.5; }
-
-        /* ===== Progress ===== */
-        .progress-container {
-            width: 100%;
-            margin-bottom: 20px;
-            min-height: 36px;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-        }
-
-        .progress-container.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 2px;
-            overflow: hidden;
-            position: relative;
-            cursor: default;
-        }
-
-        .progress-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, var(--accent), var(--accent-light));
-            border-radius: 2px;
-            transition: width 0.3s ease;
-        }
-
-        .progress-time {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 6px;
-            font-size: 11px;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        /* ===== Controls ===== */
-        .controls {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 24px;
-            width: 100%;
-        }
-
+        
+        .progress-container { width: 100%; margin-bottom: 24px; min-height: 36px; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
+        .progress-container.active { opacity: 1; visibility: visible; }
+        .progress-bar { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; overflow: hidden; position: relative; cursor: default; }
+        .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); border-radius: 2px; transition: width 0.3s ease; }
+        .progress-time { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 500; }
+        
+        .controls { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 32px; }
         .control-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: var(--btn-glass);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            color: var(--text-primary);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--btn-shadow);
+            width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--btn-glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: var(--btn-shadow);
         }
-
-        .control-btn svg {
-            width: 20px;
-            height: 20px;
-            fill: currentColor;
-            transition: transform 0.2s;
-        }
-
-        .control-btn:hover {
-            background: var(--btn-glass-hover);
-            transform: translateY(-2px);
-        }
-
-        .control-btn:active {
-            transform: scale(0.92);
-            background: rgba(255, 255, 255, 0.2);
-        }
-
+        .control-btn svg { width: 20px; height: 20px; fill: currentColor; transition: transform 0.2s; }
+        .control-btn:hover { background: var(--btn-glass-hover); transform: translateY(-2px); }
+        .control-btn:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.2); }
+        
         .play-btn {
-            width: 68px;
-            height: 68px;
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8));
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
+            width: 76px; height: 76px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.8), rgba(167, 139, 250, 0.8));
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        .play-btn svg { width: 28px; height: 28px; fill: white; }
+        .play-btn:hover { background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(167, 139, 250, 0.95)); transform: translateY(-3px) scale(1.05); }
+        .play-btn:active { transform: scale(0.95); }
 
-        .play-btn svg {
-            width: 26px;
-            height: 26px;
-            fill: white;
-        }
-
-        .play-btn:hover {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(167, 139, 250, 0.95));
-            transform: translateY(-3px) scale(1.05);
-        }
-
-        .play-btn:active {
-            transform: scale(0.95);
-        }
-
-        /* ===== Overlays ===== */
         .overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border-radius: var(--border-radius-lg);
-            z-index: 50;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 24px 20px;
-            opacity: 0;
-            visibility: hidden;
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(15px);
+            border-radius: var(--border-radius-lg); z-index: 50;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 32px 24px; opacity: 0; visibility: hidden;
             transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
             transform: scale(0.95);
         }
+        .overlay.open { opacity: 1; visibility: visible; transform: scale(1); }
+        .overlay-content { display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 1; pointer-events: auto; }
+        .overlay-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+        .overlay-title svg { width: 20px; height: 20px; fill: var(--accent-light); }
+        .overlay-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
+        .overlay-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px; }
 
-        .overlay.open {
-            opacity: 1;
-            visibility: visible;
-            transform: scale(1);
-        }
-
-        .overlay-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            z-index: 1;
-            pointer-events: auto;
-        }
-
-        .overlay-title {
-            font-size: 17px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .overlay-title svg {
-            width: 20px;
-            height: 20px;
-            fill: var(--accent-light);
-        }
-
-        .overlay-list {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-height: 55vh;
-            overflow-y: auto;
-            padding: 4px;
-        }
-
-        .overlay-empty {
-            color: var(--text-muted);
-            font-size: 13px;
-            text-align: center;
-            padding: 20px;
-        }
-
-        /* ===== Station Items ===== */
         .station-item {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-primary);
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-family: inherit;
-            font-weight: 500;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            width: 100%; padding: 14px 18px; border-radius: 12px; background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-primary); font-size: 14px; cursor: pointer;
+            transition: all 0.2s ease; font-family: inherit; font-weight: 500;
+            text-align: left; display: flex; align-items: center; gap: 10px;
         }
-
         .station-item:hover { background: rgba(255, 255, 255, 0.12); }
         .station-item:active { transform: scale(0.98); }
         .station-item.active { background: rgba(124, 58, 237, 0.3); border-color: var(--accent); }
+        .station-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+        .station-item.active .station-dot { background: var(--success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
 
-        .station-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            flex-shrink: 0;
-        }
-
-        .station-item.active .station-dot {
-            background: var(--success);
-            box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-        }
-
-        /* ===== History Items ===== */
         .history-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.2s ease;
-            width: 100%;
+            display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease; width: 100%;
         }
-
         .history-item:hover { background: rgba(255, 255, 255, 0.1); }
         .history-item:active { transform: scale(0.98); }
         .history-item:last-child { opacity: 0.7; }
-
-        .history-art {
-            width: 44px;
-            height: 44px;
-            border-radius: 8px;
-            flex-shrink: 0;
-            background: linear-gradient(135deg, #7c3aed, #a78bfa);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            color: white;
-            opacity: 0.6;
-            background-size: cover;
-            background-position: center;
-            overflow: hidden;
-        }
-
-        .history-info {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .history-track-title {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-primary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .history-track-artist {
-            font-size: 12px;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .history-time {
-            font-size: 11px;
-            color: var(--text-muted);
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .history-time svg {
-            width: 12px;
-            height: 12px;
-            fill: var(--text-muted);
-        }
-
-        /* ===== Status Badge ===== */
-        .status-badge {
-            font-size: 11px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-weight: 500;
-        }
-
-        .status-badge.online {
-            background: rgba(16, 185, 129, 0.2);
-            color: var(--success);
-        }
-
-        .status-badge.error {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--error);
-        }
-
-        /* ===== Responsive Breakpoints ===== */
         
-        /* Small phones */
-        @media (max-width: 400px) {
-            .app-container { padding: 16px; }
-            .player-card { padding: 16px; }
-            .play-btn { width: 64px; height: 64px; }
-            .controls { gap: 16px; }
-            .track-title { font-size: 22px; }
-            .track-artist { font-size: 15px; }
+        .history-art {
+            width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0;
+            background: linear-gradient(135deg, #7c3aed, #a78bfa);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; color: white; opacity: 0.6;
+            background-size: cover; background-position: center;
+            overflow: hidden;
         }
-
-        /* Short screens */
-        @media (max-height: 700px) {
-            .cover-wrapper { max-width: 90%; margin-left: auto; margin-right: auto; }
-            .track-title { font-size: 20px; }
-            .app-container { padding: 12px; }
-            .player-card { padding: 16px; }
-        }
-
-        /* Tablet and desktop */
-        @media (min-width: 768px) {
-            .app-container { padding: 32px; max-width: 720px; }
-            .player-card { padding: 28px; border-radius: 28px; }
-            .track-title { font-size: 28px; }
-            .track-artist { font-size: 18px; }
-            .play-btn { width: 80px; height: 80px; }
-            .control-btn { width: 56px; height: 56px; }
-            .controls { gap: 28px; }
-            .cover-wrapper { max-width: 85%; }
-        }
-
-        /* Full-screen player mode (if needed) */
-        @media (min-height: 900px) and (max-width: 480px) {
-            .app-container { justify-content: center; }
-            .player-card { max-width: 420px; }
-        }
-
-        /* Landscape phones */
-        @media (max-height: 500px) and (orientation: landscape) {
-            .app-container { flex-direction: row; justify-content: center; align-items: center; padding: 12px; }
-            .player-card { max-width: 600px; display: flex; flex-direction: row; flex-wrap: wrap; padding: 16px; }
-            .cover-wrapper { width: 40%; max-width: 200px; margin-bottom: 0; margin-right: 16px; }
-            .track-info { text-align: left; align-items: flex-start; }
-            .controls { justify-content: flex-start; }
-        }
-
-        /* Scrollbar styling */
-        .overlay-list::-webkit-scrollbar { width: 4px; }
-        .overlay-list::-webkit-scrollbar-track { background: transparent; }
-        .overlay-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
+        
+        .history-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+        .history-track-title { font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-track-artist { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-time { font-size: 11px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+        .history-time svg { width: 12px; height: 12px; fill: var(--text-muted); }
+        
+        .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
+        .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+        
+        @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
+        @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
     </style>
 </head>
 <body>
@@ -648,44 +201,33 @@
                         <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
                     </button>
                     <button class="burger-btn" id="burger-btn" title="Станции">
-                        <span class="burger-line"></span>
-                        <span class="burger-line"></span>
-                        <span class="burger-line"></span>
+                        <span class="burger-line"></span><span class="burger-line"></span><span class="burger-line"></span>
                     </button>
                 </div>
             </header>
-
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"></div>
                 <div class="viz-canvas-wrapper" id="visualizer-container">
                     <canvas id="visualizer-canvas"></canvas>
                 </div>
             </div>
-
             <div class="track-info">
                 <h2 class="track-title placeholder" id="track-title">—</h2>
                 <p class="track-artist placeholder" id="track-artist">—</p>
             </div>
-
             <div class="progress-container" id="progress-container">
                 <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
                 <div class="progress-time"><span id="progress-current">0:00</span><span id="progress-duration">0:00</span></div>
             </div>
-
             <div class="controls">
-                <button class="control-btn" id="prev-btn" title="Предыдущая станция">
-                    <svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg>
-                </button>
+                <button class="control-btn" id="prev-btn" title="Предыдущая станция"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
                 <button class="control-btn play-btn" id="play-btn" title="Play/Pause">
                     <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     <svg id="pause-icon" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                 </button>
-                <button class="control-btn" id="next-btn" title="Следующая станция">
-                    <svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg>
-                </button>
+                <button class="control-btn" id="next-btn" title="Следующая станция"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4zm14 0v16h-2V4h2z"/></svg></button>
             </div>
 
-            <!-- Stations Overlay -->
             <div class="overlay" id="stations-overlay">
                 <div class="overlay-content">
                     <div class="overlay-title">📻 Станции</div>
@@ -693,7 +235,6 @@
                 </div>
             </div>
 
-            <!-- History Overlay -->
             <div class="overlay" id="history-overlay">
                 <div class="overlay-content">
                     <div class="overlay-title">
@@ -744,8 +285,7 @@
             if (!vizCanvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
             const rect = vizCanvas.getBoundingClientRect();
-            vizCanvas.width = rect.width * dpr;
-            vizCanvas.height = rect.height * dpr;
+            vizCanvas.width = rect.width * dpr; vizCanvas.height = rect.height * dpr;
             vizCanvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             const w = rect.width, h = rect.height;
             vizCanvasCtx.clearRect(0, 0, w, h);
@@ -784,35 +324,24 @@
             }
             vizAnimId = requestAnimationFrame(drawConstellation);
         }
-
         function startVisualizer() {
             vizContainer.classList.add('active');
             if (!initAudioAnalysis()) return;
             if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
             if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
         }
-
         function stopVisualizer() {
             vizContainer.classList.remove('active'); isVizRunning = false; cancelAnimationFrame(vizAnimId);
             if (vizCanvasCtx) { const rect = vizCanvas.getBoundingClientRect(); vizCanvasCtx.clearRect(0, 0, rect.width, rect.height); }
         }
-
         function vizCleanup() {
             stopVisualizer();
             if (vizSourceNode) { try { vizSourceNode.disconnect(); } catch(e) {} vizSourceNode = null; }
             if (vizAnalyser) { try { vizAnalyser.disconnect(); } catch(e) {} vizAnalyser = null; }
             if (vizAudioCtx && vizAudioCtx.state !== 'closed') { vizAudioCtx.close().catch(() => {}); vizAudioCtx = null; }
         }
-
-        function vizResizeCanvas() {
-            if (!vizCanvasCtx) return;
-            const dpr = window.devicePixelRatio || 1;
-            const rect = vizCanvas.getBoundingClientRect();
-            vizCanvas.width = rect.width * dpr;
-            vizCanvas.height = rect.height * dpr;
-        }
-        window.addEventListener('resize', vizResizeCanvas);
-        setTimeout(vizResizeCanvas, 100);
+        function vizResizeCanvas() { if (!vizCanvasCtx) return; const dpr = window.devicePixelRatio || 1; const rect = vizCanvas.getBoundingClientRect(); vizCanvas.width = rect.width * dpr; vizCanvas.height = rect.height * dpr; }
+        window.addEventListener('resize', vizResizeCanvas); vizResizeCanvas();
         
         // ==========================================
         // RADIO CORE & HISTORY
@@ -844,7 +373,9 @@
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         let stationsOpen = false, historyOpen = false;
+        // Хранилище истории: { stationId: [ {title, artist, art, time} ] }
         let stationHistories = {};
+        // Флаг загрузки истории для каждой станции
         let stationHistoryLoaded = {};
         let lastCoverUrl = '';
 
@@ -861,6 +392,7 @@
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
 
+        // Загрузка списка станций
         async function loadStationsFromAPI() {
             try {
                 const ctrl = new AbortController();
@@ -889,6 +421,7 @@
             return false;
         }
 
+        // Фоллбэк станции (хардкод)
         function initFallbackStations() {
             stations = {}; stationHistories = {}; stationHistoryLoaded = {};
             Object.entries(HARDCODED_STREAMS).forEach(([id, st]) => {
@@ -900,9 +433,11 @@
             renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
         }
 
+        // Загрузка текущего статуса для ВСЕХ станций (PREFETCHING)
         async function loadNowPlayingForAll() {
             const keys = Object.keys(stations);
             if (keys.length === 0) return;
+
             await Promise.all(keys.map(async (sid) => {
                 try {
                     const ctrl = new AbortController();
@@ -918,16 +453,26 @@
                     if (data.station?.name) stations[sid].name = data.station.name;
                     if (sid === currentStationKey) setCoverArt(artUrl);
                     
+                    // Загружаем историю из API для каждой станции
                     parseAndSaveHistory(sid, data);
                     stationHistoryLoaded[sid] = true;
+
                 } catch (e) { 
                     console.warn(`Failed to load info for ${sid}`, e); 
                 }
             }));
         }
 
+        // Парсинг и сохранение истории из ответа API
         function parseAndSaveHistory(stationId, data) {
+            // AzuraCast может возвращать историю в разных местах:
+            // 1. now_playing.history (для текущей станции)
+            // 2. song_history (для других станций через отдельный эндпоинт)
+            // 3. now_playing.song.history
+            
             let rawHistory = [];
+            
+            // Пробуем разные пути для получения истории
             if (data.now_playing?.history && Array.isArray(data.now_playing.history)) {
                 rawHistory = data.now_playing.history;
             } else if (data.song_history && Array.isArray(data.song_history)) {
@@ -938,13 +483,21 @@
             
             const parsedHist = [];
             const maxItems = Math.min(rawHistory.length, 5);
+            
             for (let i = 0; i < maxItems; i++) {
                 const entry = rawHistory[i];
                 const songData = entry.song || entry; 
+                
+                // Вычисляем время
                 let time;
-                if (entry.played_at) time = entry.played_at * 1000;
-                else if (entry.timestamp) time = entry.timestamp * 1000;
-                else time = Date.now() - (i + 1) * 180000;
+                if (entry.played_at) {
+                    time = entry.played_at * 1000; // Unix timestamp в миллисекунды
+                } else if (entry.timestamp) {
+                    time = entry.timestamp * 1000;
+                } else {
+                    time = Date.now() - (i + 1) * 180000; // Fallback: ~3 мин назад
+                }
+                
                 parsedHist.push({
                     title: songData.title || 'Unknown Track',
                     artist: songData.artist || 'Unknown Artist',
@@ -952,20 +505,30 @@
                     time: time
                 });
             }
+            
             stationHistories[stationId] = parsedHist;
         }
 
+        // Принудительная загрузка истории для конкретной станции
         async function loadStationHistory(stationId) {
             if (stationHistoryLoaded[stationId]) return;
+            
             try {
                 const ctrl = new AbortController();
                 setTimeout(() => ctrl.abort(), 5000);
+                
+                // Запрашиваем историю специально для этой станции
                 const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal });
                 if (!res.ok) return;
                 const data = await res.json();
+                
                 parseAndSaveHistory(stationId, data);
                 stationHistoryLoaded[stationId] = true;
-                if (historyOpen && stationId === currentStationKey) renderCurrentHistory();
+                
+                // Если история открыта для этой станции - обновляем UI
+                if (historyOpen && stationId === currentStationKey) {
+                    renderCurrentHistory();
+                }
             } catch (e) {
                 console.warn(`Failed to load history for ${stationId}`, e);
             }
@@ -997,10 +560,13 @@
             stopPlayback(); 
             setCoverArt(st.art); 
             renderStationsList();
+            
+            // Если история открыта - загружаем историю для новой станции и обновляем UI
             if (historyOpen) {
                 renderCurrentHistory();
-                loadStationHistory(key);
+                loadStationHistory(key); // Загружаем если ещё не загружена
             }
+            
             if (autoPlay) startPlayback(st);
         }
 
@@ -1053,7 +619,6 @@
                 } catch (e) { updateStatus(false); }
             }, 150);
         }
-
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
             stopVisualizer(); stopProgressAnimation(); updateStatus(false);
@@ -1061,10 +626,10 @@
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
-
         function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
+        // Получение метаданных (обновляет историю в реальном времени)
         async function fetchMetadata(apiUrl) {
             if (!isPlaying || !currentStationKey) return;
             try {
@@ -1078,13 +643,17 @@
                     const title = song.title || 'Unknown Track';
                     const artist = song.artist || 'Unknown Artist';
                     const art = resolveArtUrl(song.art);
+                    
                     trackTitleEl.textContent = title; 
                     trackArtistEl.textContent = artist;
                     trackTitleEl.classList.remove('placeholder'); 
                     trackArtistEl.classList.remove('placeholder');
                     setCoverArt(art);
+
+                    // Обновляем историю в памяти
                     addToStationHistory(currentStationKey, title, artist, art);
                 }
+                
                 if (duration && elapsed !== undefined) { 
                     trackData = { duration, elapsed, lastUpdate: Date.now() }; 
                     updateProgress(elapsed, duration); 
@@ -1099,35 +668,59 @@
             progressFill.style.width = `${Math.min(100, Math.max(0, (elapsed / duration) * 100))}%`;
             progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
         }
-
         function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if (!isPlaying || !trackData.duration) return; const el = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000; el < trackData.duration && updateProgress(el, trackData.duration); }, 500); }
         function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
 
+        // Логика добавления трека в историю конкретной станции
         function addToStationHistory(stationId, title, artist, art) {
             if (!stationId || !title || title === 'Unknown Track') return;
+            
             const hist = stationHistories[stationId] || [];
+            
+            // Не добавляем дубликат
             if (hist.length > 0 && hist[0].title === title && hist[0].artist === artist) return;
-            hist.unshift({ title, artist: artist || 'Unknown Artist', art: art || DEFAULT_COVER_SVG, time: Date.now() });
+            
+            hist.unshift({ 
+                title, 
+                artist: artist || 'Unknown Artist', 
+                art: art || DEFAULT_COVER_SVG, 
+                time: Date.now() 
+            });
+            
             if (hist.length > 5) hist.length = 5;
             stationHistories[stationId] = hist;
-            if (historyOpen && stationId === currentStationKey) renderCurrentHistory();
+            
+            // Если история открыта для этой станции - перерисовываем
+            if (historyOpen && stationId === currentStationKey) {
+                renderCurrentHistory();
+            }
         }
         
+        // Отрисовка истории для ТЕКУЩЕЙ выбранной станции
         function renderCurrentHistory() {
             if (!currentStationKey) return;
+            
             const hist = stationHistories[currentStationKey] || [];
+            
+            // Очищаем список
             historyList.querySelectorAll('.history-item').forEach(el => el.remove());
+            
             if (hist.length === 0) { 
                 historyEmpty.style.display = 'block';
                 return; 
             }
+            
             historyEmpty.style.display = 'none';
+            
             hist.forEach((t, i) => {
                 const item = document.createElement('div'); 
                 item.className = 'history-item';
+                
                 const artStyle = t.art && t.art !== DEFAULT_COVER_SVG ? `background-image:url('${t.art}')` : '';
+                const artEmoji = '';
+                
                 item.innerHTML = `
-                    <div class="history-art" style="${artStyle}"></div>
+                    <div class="history-art" style="${artStyle}">${artEmoji}</div>
                     <div class="history-info">
                         <div class="history-track-title">${t.title}</div>
                         <div class="history-track-artist">${t.artist}</div>
@@ -1143,17 +736,23 @@
         function openHistory() { 
             if (stationsOpen) closeStations(); 
             historyOpen = true; 
+            
+            // Показываем "Загрузка" если история ещё не загружена
             if (!stationHistoryLoaded[currentStationKey] || stationHistories[currentStationKey].length === 0) {
                 historyEmpty.style.display = 'block';
-                historyEmpty.textContent = ' Загрузка истории...';
+                historyEmpty.textContent = '🎧 Загрузка истории...';
                 historyList.querySelectorAll('.history-item').forEach(el => el.remove());
             } else {
                 renderCurrentHistory();
             }
+            
             historyOverlay.classList.add('open');
-            if (!stationHistoryLoaded[currentStationKey]) loadStationHistory(currentStationKey);
+            
+            // Загружаем историю с сервера если ещё не загружена
+            if (!stationHistoryLoaded[currentStationKey]) {
+                loadStationHistory(currentStationKey);
+            }
         }
-
         function closeHistory() { 
             historyOpen = false; 
             historyOverlay.classList.remove('open'); 
