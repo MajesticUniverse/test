@@ -29,7 +29,7 @@
             margin: 0;
             width: 100%;
             min-height: 100%;
-            background-color: var(--bg-primary);
+            background-color: #1a1030;
         }
         html { height: -webkit-fill-available; overscroll-behavior-y: none; }
         body {
@@ -46,8 +46,8 @@
         body::before {
             content: '';
             position: fixed;
-            inset: 0;
-            background: var(--bg-primary);
+            inset: -25vmax;
+            background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
             z-index: -1;
             pointer-events: none;
         }
@@ -812,3 +812,5 @@
     </script>
 </body>
 </html>
+
+
