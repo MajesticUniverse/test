@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#1e113d">
+    <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,41 +25,17 @@
             --btn-glass: rgba(255, 255, 255, 0.08); --btn-glass-hover: rgba(255, 255, 255, 0.15); --btn-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-        html {
-            height: 100%;
-            background: #1e113d;
-        }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background:
-                radial-gradient(circle at 50% -10%, rgba(167, 139, 250, 0.2), transparent 48%),
-                linear-gradient(180deg, #130926 0%, #1a1033 48%, #0f091e 100%);
+            background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
             color: var(--text-primary); min-height: 100vh; min-height: -webkit-fill-available;
             overflow-x: hidden; display: flex; justify-content: center; align-items: flex-start;
-            position: relative;
         }
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background: linear-gradient(180deg, rgba(3, 2, 8, 0.42) 0%, rgba(3, 2, 8, 0.08) 20%, rgba(3, 2, 8, 0.08) 80%, rgba(3, 2, 8, 0.5) 100%);
-            z-index: 0;
-        }
-        .app-container {
-            width: 100%; max-width: 420px;
-            min-height: 100vh; min-height: -webkit-fill-available;
-            padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
-            display: flex; flex-direction: column; align-items: center;
-            position: relative;
-            z-index: 1;
-        }
+        .app-container { width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
         .player-card {
-            width: 100%; background: linear-gradient(160deg, rgba(66, 46, 112, 0.88) 0%, rgba(50, 35, 88, 0.84) 100%);
-            backdrop-filter: blur(20px);
-            border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.16);
-            padding: 24px; box-shadow: 0 26px 70px rgba(6, 4, 16, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
-            position: relative; overflow: hidden;
+            width: 100%; background: rgba(45, 31, 78, 0.6); backdrop-filter: blur(20px);
+            border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 24px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;
         }
         .app-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
         .logo { display: flex; align-items: center; gap: 12px; }
@@ -816,3 +792,4 @@
     </script>
 </body>
 </html>
+
