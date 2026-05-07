@@ -266,6 +266,7 @@
         // ==========================================
         let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
         let vizFreqData = null, vizAnimId = null, isVizRunning = false;
+        let vizFallbackPhase = 0, vizUseFallback = false;
         const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.8, BASE_Y: 0.98 };
         const vizNodes = [];
         for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
@@ -287,7 +288,11 @@
                 vizSourceNode.connect(vizAnalyser);
                 vizAnalyser.connect(vizAudioCtx.destination);
                 return true;
-            } catch (e) { return false; }
+            } catch (e) {
+                console.warn('Visualizer audio analysis unavailable (likely stream CORS):', e);
+                vizUseFallback = true;
+                return false;
+            }
         }
         
         function drawConstellation() {
@@ -298,8 +303,22 @@
             vizCanvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             const w = rect.width, h = rect.height;
             vizCanvasCtx.clearRect(0, 0, w, h);
-            if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
-            vizAnalyser.getByteFrequencyData(vizFreqData);
+            if (vizUseFallback || !vizAnalyser || !vizFreqData) {
+                const now = performance.now() / 1000;
+                const vizPadding = 5, drawWidth = w - vizPadding * 2;
+                vizFallbackPhase += 0.03;
+                for (let ni = 0; ni < VIZ_CONFIG.NUM_NODES; ni++) {
+                    const ratio = ni / (VIZ_CONFIG.NUM_NODES - 1);
+                    const wave = Math.sin((ratio * 8) + vizFallbackPhase) * 0.5 + 0.5;
+                    const pulse = Math.sin(now * 2.2 + ratio * 10) * 0.5 + 0.5;
+                    const val = (wave * 0.6 + pulse * 0.4) * 0.35;
+                    vizNodes[ni].x = vizPadding + ratio * drawWidth;
+                    vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
+                    vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
+                    vizNodes[ni].energy = val;
+                }
+            } else {
+                vizAnalyser.getByteFrequencyData(vizFreqData);
             const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
             const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
             const vizPadding = 5, drawWidth = w - vizPadding * 2;
@@ -311,6 +330,7 @@
                 vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
                 vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
                 vizNodes[ni].energy = val;
+            }
             }
             vizCanvasCtx.lineWidth = 0.8;
             for (let li = 0; li < VIZ_CONFIG.NUM_NODES; li++) {
@@ -397,7 +417,13 @@
             if (mins < 60) return `${mins} мин назад`; 
             return `${Math.floor(mins / 60)} ч назад`; 
         }
-        function updateStatus(on) { statusBadge.classList.remove('online', 'error'); if (on) { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; } else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
+        function updateStatus(on) {
+            statusBadge.classList.remove('online', 'error');
+            if (on) {
+                statusBadge.classList.add('online');
+                statusBadge.innerHTML = `<span>${vizUseFallback ? 'В эфире • CORS viz' : 'В эфире'}</span>`;
+            } else statusBadge.innerHTML = '<span>Оффлайн</span>';
+        }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
 
@@ -406,7 +432,7 @@
             try {
                 const ctrl = new AbortController();
                 setTimeout(() => ctrl.abort(), 5000);
-                const res = await fetch(`${BASE_URL}/api/stations`, { signal: ctrl.signal });
+                const res = await fetch(`${BASE_URL}/api/stations`, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' });
                 if (!res.ok) throw new Error('API error');
                 const data = await res.json();
                 const arr = Array.isArray(data) ? data : data.stations || [];
@@ -451,7 +477,7 @@
                 try {
                     const ctrl = new AbortController();
                     setTimeout(() => ctrl.abort(), 3000);
-                    const res = await fetch(`${stations[sid].api}?r=${Math.random()}`, { signal: ctrl.signal });
+                    const res = await fetch(`${stations[sid].api}?r=${Math.random()}`, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' });
                     if (!res.ok) return;
                     const data = await res.json();
                     
@@ -527,7 +553,7 @@
                 setTimeout(() => ctrl.abort(), 5000);
                 
                 // Запрашиваем историю специально для этой станции
-                const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal });
+                const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' });
                 if (!res.ok) return;
                 const data = await res.json();
                 
@@ -642,7 +668,7 @@
         async function fetchMetadata(apiUrl) {
             if (!isPlaying || !currentStationKey) return;
             try {
-                const res = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
+                const res = await fetch(`${apiUrl}?r=${Math.random()}`, { mode: 'cors', cache: 'no-store' });
                 if (!res.ok) return;
                 const data = await res.json();
                 const song = data?.now_playing?.song;
