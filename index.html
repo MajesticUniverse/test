@@ -274,6 +274,16 @@
         const vizCanvasCtx = vizCanvas.getContext('2d');
         const vizContainer = document.getElementById('visualizer-container');
         const radioAudioEl = document.getElementById('audio-player');
+        let vizUnlockedByGesture = false;
+
+        async function ensureVisualizerReadyFromGesture() {
+            if (vizUnlockedByGesture) return;
+            const ready = initAudioAnalysis();
+            if (ready && vizAudioCtx?.state === 'suspended') {
+                try { await vizAudioCtx.resume(); } catch (e) {}
+            }
+            vizUnlockedByGesture = true;
+        }
         
         function initAudioAnalysis() {
             if (vizAudioCtx) return true;
@@ -355,8 +365,9 @@
         }
         function startVisualizer() {
             vizContainer.classList.add('active');
-            if (!initAudioAnalysis()) return;
-            if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
+            const analysisReady = initAudioAnalysis();
+            if (analysisReady && vizAudioCtx?.state === 'suspended') vizAudioCtx.resume().catch(() => {});
+            // Даже если анализ недоступен из-за CORS, запускаем fallback-анимацию.
             if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
         }
         function stopVisualizer() {
@@ -641,18 +652,21 @@
             img.src = artUrl;
         }
 
-        function startPlayback(st) {
-            playbackStarted = false; audio.src = `${st.stream}?t=${Date.now()}`;
-            setTimeout(async () => {
-                try {
-                    await audio.play(); isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); startVisualizer(); updateStatus(true);
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(st.api);
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(st.api), 10000);
-                } catch (e) { updateStatus(false); }
-            }, 150);
+        async function startPlayback(st) {
+            playbackStarted = false;
+            audio.src = `${st.stream}?t=${Date.now()}`;
+            try {
+                await audio.play();
+                isPlaying = true; playbackStarted = true;
+                updatePlayButton(); startVisualizer(); updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                fetchMetadata(st.api);
+                metadataInterval && clearInterval(metadataInterval);
+                metadataInterval = setInterval(() => fetchMetadata(st.api), 10000);
+            } catch (e) {
+                updateStatus(false);
+                console.warn('Audio playback blocked or failed:', e);
+            }
         }
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
@@ -661,7 +675,7 @@
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
-        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
+        async function togglePlay() { if (!currentStationKey || !stations[currentStationKey]) return; if (isPlaying) { stopPlayback(); return; } await ensureVisualizerReadyFromGesture(); startPlayback(stations[currentStationKey]); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
         // Получение метаданных (обновляет историю в реальном времени)
