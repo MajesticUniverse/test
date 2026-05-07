@@ -102,29 +102,6 @@
             overflow: hidden;
         }
         .viz-canvas-wrapper.active { opacity: 1; }
-        .viz-debug-pill {
-            position: absolute;
-            top: 6px;
-            right: 8px;
-            z-index: 4;
-            padding: 2px 7px;
-            border-radius: 999px;
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            color: #fff;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(148, 163, 184, 0.45);
-            backdrop-filter: blur(4px);
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        .viz-canvas-wrapper.active .viz-debug-pill { opacity: 1; }
-        .viz-debug-pill.mode-fft { border-color: rgba(52,211,153,.7); color: #86efac; }
-        .viz-debug-pill.mode-fallback { border-color: rgba(251,191,36,.7); color: #fde68a; }
-        .viz-debug-pill.mode-no-energy { border-color: rgba(248,113,113,.7); color: #fca5a5; }
-
         #visualizer-canvas {
             width: 100%; height: 100%; display: block;
         }
@@ -240,7 +217,6 @@
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"></div>
                 <div class="viz-canvas-wrapper" id="visualizer-container">
-                    <div id="viz-debug-pill" class="viz-debug-pill mode-fallback">fallback</div>
                     <canvas id="visualizer-canvas"></canvas>
                 </div>
             </div>
@@ -290,7 +266,6 @@
         // ==========================================
         let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
         let vizFreqData = null, vizAnimId = null, isVizRunning = false;
-        let vizFallbackPhase = 0, vizUseFallback = false;
         const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.8, BASE_Y: 0.98 };
         const vizNodes = [];
         for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
@@ -298,18 +273,6 @@
         const vizCanvasCtx = vizCanvas.getContext('2d');
         const vizContainer = document.getElementById('visualizer-container');
         const radioAudioEl = document.getElementById('audio-player');
-        const vizDebugPill = document.getElementById('viz-debug-pill');
-        let vizUnlockedByGesture = false;
-        let vizSilentFrames = 0;
-
-        async function ensureVisualizerReadyFromGesture() {
-            if (vizUnlockedByGesture) return;
-            const ready = initAudioAnalysis();
-            if (ready && vizAudioCtx?.state === 'suspended') {
-                try { await vizAudioCtx.resume(); } catch (e) {}
-            }
-            vizUnlockedByGesture = true;
-        }
         
         function initAudioAnalysis() {
             if (vizAudioCtx) return true;
@@ -324,29 +287,9 @@
                 vizSourceNode.connect(vizAnalyser);
                 vizAnalyser.connect(vizAudioCtx.destination);
                 return true;
-            } catch (e) {
-                console.warn('Visualizer audio analysis unavailable (likely stream CORS):', e);
-                vizUseFallback = true;
-                return false;
-            }
+            } catch (e) { return false; }
         }
         
-
-        function setVizDebugMode(mode) {
-            if (!vizDebugPill) return;
-            vizDebugPill.classList.remove('mode-fft', 'mode-fallback', 'mode-no-energy');
-            if (mode === 'fft') {
-                vizDebugPill.classList.add('mode-fft');
-                vizDebugPill.textContent = 'FFT ok';
-            } else if (mode === 'no-energy') {
-                vizDebugPill.classList.add('mode-no-energy');
-                vizDebugPill.textContent = 'no-energy';
-            } else {
-                vizDebugPill.classList.add('mode-fallback');
-                vizDebugPill.textContent = 'fallback';
-            }
-        }
-
         function drawConstellation() {
             if (!vizCanvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
@@ -355,40 +298,19 @@
             vizCanvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
             const w = rect.width, h = rect.height;
             vizCanvasCtx.clearRect(0, 0, w, h);
-            if (vizUseFallback || !vizAnalyser || !vizFreqData) {
-                setVizDebugMode('fallback');
-                const now = performance.now() / 1000;
-                const vizPadding = 5, drawWidth = w - vizPadding * 2;
-                vizFallbackPhase += 0.03;
-                for (let ni = 0; ni < VIZ_CONFIG.NUM_NODES; ni++) {
-                    const ratio = ni / (VIZ_CONFIG.NUM_NODES - 1);
-                    const wave = Math.sin((ratio * 8) + vizFallbackPhase) * 0.5 + 0.5;
-                    const pulse = Math.sin(now * 2.2 + ratio * 10) * 0.5 + 0.5;
-                    const val = (wave * 0.6 + pulse * 0.4) * 0.35;
-                    vizNodes[ni].x = vizPadding + ratio * drawWidth;
-                    vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
-                    vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
-                    vizNodes[ni].energy = val;
-                }
-            } else {
-                vizAnalyser.getByteFrequencyData(vizFreqData);
+            if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
+            vizAnalyser.getByteFrequencyData(vizFreqData);
             const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
             const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
             const vizPadding = 5, drawWidth = w - vizPadding * 2;
-            let energySum = 0;
             for (let ni = 0; ni < VIZ_CONFIG.NUM_NODES; ni++) {
                 const ratio = ni / (VIZ_CONFIG.NUM_NODES - 1);
                 const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
                 const val = vizFreqData[bin] / 255;
-                energySum += val;
                 vizNodes[ni].x = vizPadding + ratio * drawWidth;
                 vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
                 vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
                 vizNodes[ni].energy = val;
-            }
-            const avgEnergy = energySum / VIZ_CONFIG.NUM_NODES;
-            vizSilentFrames = avgEnergy < 0.01 ? (vizSilentFrames + 1) : 0;
-            setVizDebugMode(vizSilentFrames > 24 ? 'no-energy' : 'fft');
             }
             vizCanvasCtx.lineWidth = 0.8;
             for (let li = 0; li < VIZ_CONFIG.NUM_NODES; li++) {
@@ -413,9 +335,8 @@
         }
         function startVisualizer() {
             vizContainer.classList.add('active');
-            const analysisReady = initAudioAnalysis();
-            if (analysisReady && vizAudioCtx?.state === 'suspended') vizAudioCtx.resume().catch(() => {});
-            // Даже если анализ недоступен из-за CORS, запускаем fallback-анимацию.
+            if (!initAudioAnalysis()) return;
+            if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
             if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
         }
         function stopVisualizer() {
@@ -476,13 +397,7 @@
             if (mins < 60) return `${mins} мин назад`; 
             return `${Math.floor(mins / 60)} ч назад`; 
         }
-        function updateStatus(on) {
-            statusBadge.classList.remove('online', 'error');
-            if (on) {
-                statusBadge.classList.add('online');
-                statusBadge.innerHTML = `<span>${vizUseFallback ? 'В эфире • CORS viz' : 'В эфире'}</span>`;
-            } else statusBadge.innerHTML = '<span>Оффлайн</span>';
-        }
+        function updateStatus(on) { statusBadge.classList.remove('online', 'error'); if (on) { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; } else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
 
@@ -491,7 +406,7 @@
             try {
                 const ctrl = new AbortController();
                 setTimeout(() => ctrl.abort(), 5000);
-                const res = await fetch(`${BASE_URL}/api/stations`, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' });
+                const res = await fetch(`${BASE_URL}/api/stations`, { signal: ctrl.signal });
                 if (!res.ok) throw new Error('API error');
                 const data = await res.json();
                 const arr = Array.isArray(data) ? data : data.stations || [];
@@ -536,7 +451,7 @@
                 try {
                     const ctrl = new AbortController();
                     setTimeout(() => ctrl.abort(), 3000);
-                    const res = await fetch(`${stations[sid].api}?r=${Math.random()}`, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' });
+                    const res = await fetch(`${stations[sid].api}?r=${Math.random()}`, { signal: ctrl.signal });
                     if (!res.ok) return;
                     const data = await res.json();
                     
@@ -612,7 +527,7 @@
                 setTimeout(() => ctrl.abort(), 5000);
                 
                 // Запрашиваем историю специально для этой станции
-                const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' });
+                const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal });
                 if (!res.ok) return;
                 const data = await res.json();
                 
@@ -700,21 +615,18 @@
             img.src = artUrl;
         }
 
-        async function startPlayback(st) {
-            playbackStarted = false;
-            audio.src = `${st.stream}?t=${Date.now()}`;
-            try {
-                await audio.play();
-                isPlaying = true; playbackStarted = true;
-                updatePlayButton(); startVisualizer(); updateStatus(true);
-                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                fetchMetadata(st.api);
-                metadataInterval && clearInterval(metadataInterval);
-                metadataInterval = setInterval(() => fetchMetadata(st.api), 10000);
-            } catch (e) {
-                updateStatus(false);
-                console.warn('Audio playback blocked or failed:', e);
-            }
+        function startPlayback(st) {
+            playbackStarted = false; audio.src = `${st.stream}?t=${Date.now()}`;
+            setTimeout(async () => {
+                try {
+                    await audio.play(); isPlaying = true; playbackStarted = true;
+                    updatePlayButton(); startVisualizer(); updateStatus(true);
+                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                    fetchMetadata(st.api);
+                    metadataInterval && clearInterval(metadataInterval);
+                    metadataInterval = setInterval(() => fetchMetadata(st.api), 10000);
+                } catch (e) { updateStatus(false); }
+            }, 150);
         }
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
@@ -723,14 +635,14 @@
             errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
             trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         }
-        async function togglePlay() { if (!currentStationKey || !stations[currentStationKey]) return; if (isPlaying) { stopPlayback(); return; } await ensureVisualizerReadyFromGesture(); startPlayback(stations[currentStationKey]); }
+        function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
         // Получение метаданных (обновляет историю в реальном времени)
         async function fetchMetadata(apiUrl) {
             if (!isPlaying || !currentStationKey) return;
             try {
-                const res = await fetch(`${apiUrl}?r=${Math.random()}`, { mode: 'cors', cache: 'no-store' });
+                const res = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
                 if (!res.ok) return;
                 const data = await res.json();
                 const song = data?.now_playing?.song;
