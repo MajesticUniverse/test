@@ -102,6 +102,29 @@
             overflow: hidden;
         }
         .viz-canvas-wrapper.active { opacity: 1; }
+        .viz-debug-pill {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            z-index: 4;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #fff;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .viz-canvas-wrapper.active .viz-debug-pill { opacity: 1; }
+        .viz-debug-pill.mode-fft { border-color: rgba(52,211,153,.7); color: #86efac; }
+        .viz-debug-pill.mode-fallback { border-color: rgba(251,191,36,.7); color: #fde68a; }
+        .viz-debug-pill.mode-no-energy { border-color: rgba(248,113,113,.7); color: #fca5a5; }
+
         #visualizer-canvas {
             width: 100%; height: 100%; display: block;
         }
@@ -217,6 +240,7 @@
             <div class="cover-wrapper">
                 <div class="cover-art" id="cover-art"></div>
                 <div class="viz-canvas-wrapper" id="visualizer-container">
+                    <div id="viz-debug-pill" class="viz-debug-pill mode-fallback">fallback</div>
                     <canvas id="visualizer-canvas"></canvas>
                 </div>
             </div>
@@ -274,7 +298,9 @@
         const vizCanvasCtx = vizCanvas.getContext('2d');
         const vizContainer = document.getElementById('visualizer-container');
         const radioAudioEl = document.getElementById('audio-player');
+        const vizDebugPill = document.getElementById('viz-debug-pill');
         let vizUnlockedByGesture = false;
+        let vizSilentFrames = 0;
 
         async function ensureVisualizerReadyFromGesture() {
             if (vizUnlockedByGesture) return;
@@ -305,6 +331,22 @@
             }
         }
         
+
+        function setVizDebugMode(mode) {
+            if (!vizDebugPill) return;
+            vizDebugPill.classList.remove('mode-fft', 'mode-fallback', 'mode-no-energy');
+            if (mode === 'fft') {
+                vizDebugPill.classList.add('mode-fft');
+                vizDebugPill.textContent = 'FFT ok';
+            } else if (mode === 'no-energy') {
+                vizDebugPill.classList.add('mode-no-energy');
+                vizDebugPill.textContent = 'no-energy';
+            } else {
+                vizDebugPill.classList.add('mode-fallback');
+                vizDebugPill.textContent = 'fallback';
+            }
+        }
+
         function drawConstellation() {
             if (!vizCanvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
@@ -314,6 +356,7 @@
             const w = rect.width, h = rect.height;
             vizCanvasCtx.clearRect(0, 0, w, h);
             if (vizUseFallback || !vizAnalyser || !vizFreqData) {
+                setVizDebugMode('fallback');
                 const now = performance.now() / 1000;
                 const vizPadding = 5, drawWidth = w - vizPadding * 2;
                 vizFallbackPhase += 0.03;
@@ -332,15 +375,20 @@
             const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
             const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
             const vizPadding = 5, drawWidth = w - vizPadding * 2;
+            let energySum = 0;
             for (let ni = 0; ni < VIZ_CONFIG.NUM_NODES; ni++) {
                 const ratio = ni / (VIZ_CONFIG.NUM_NODES - 1);
                 const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
                 const val = vizFreqData[bin] / 255;
+                energySum += val;
                 vizNodes[ni].x = vizPadding + ratio * drawWidth;
                 vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
                 vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
                 vizNodes[ni].energy = val;
             }
+            const avgEnergy = energySum / VIZ_CONFIG.NUM_NODES;
+            vizSilentFrames = avgEnergy < 0.01 ? (vizSilentFrames + 1) : 0;
+            setVizDebugMode(vizSilentFrames > 24 ? 'no-energy' : 'fft');
             }
             vizCanvasCtx.lineWidth = 0.8;
             for (let li = 0; li < VIZ_CONFIG.NUM_NODES; li++) {
