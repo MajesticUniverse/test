@@ -431,6 +431,11 @@
         function startVisualizer() {
             vizContainer.classList.add('active');
             const analysisReady = initAudioAnalysis();
+            if (analysisReady) {
+                vizUseFallback = false;
+                vizAutoFallbackTriggered = false;
+                vizSilentFrames = 0;
+            }
             if (analysisReady && vizAudioCtx?.state === 'suspended') vizAudioCtx.resume().catch(() => {});
             // Даже если анализ недоступен из-за CORS, запускаем fallback-анимацию.
             if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
