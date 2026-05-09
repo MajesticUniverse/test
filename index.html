@@ -117,11 +117,18 @@
             width: 100%; height: 100%; display: block;
         }
 
-        .track-info { text-align: center; margin-bottom: 20px; min-height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
-        .track-title { font-size: 26px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
-        .track-title.placeholder { opacity: 0.5; }
-        .track-artist { font-size: 17px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
-        .track-artist.placeholder { opacity: 0.5; }
+        .track-info { text-align: center; margin-bottom: 20px; min-height: 72px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; }
+        .track-line { position: relative; overflow: hidden; width: 100%; }
+        .track-title { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1.3; min-height: 32px; transition: opacity 0.2s ease; }
+        .track-artist { font-size: 17px; color: var(--text-secondary); font-weight: 400; min-height: 24px; transition: opacity 0.2s ease; }
+        .track-text { display: inline-block; white-space: nowrap; transform: translateX(0); will-change: transform; }
+        .track-line.marquee .track-text { animation: marquee-scroll var(--marquee-duration, 12s) linear infinite; }
+        .track-line:not(.marquee) .track-text { text-overflow: ellipsis; overflow: hidden; max-width: 100%; }
+        .track-title.placeholder, .track-artist.placeholder { opacity: 0.5; }
+        @keyframes marquee-scroll {
+            0%, 12% { transform: translateX(0); }
+            88%, 100% { transform: translateX(calc(-1 * var(--marquee-distance, 0px))); }
+        }
         
         .progress-container { width: 100%; margin-bottom: 24px; min-height: 36px; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
         .progress-container.active { opacity: 1; visibility: visible; }
@@ -232,8 +239,12 @@
                 </div>
             </div>
             <div class="track-info">
-                <h2 class="track-title placeholder" id="track-title">—</h2>
-                <p class="track-artist placeholder" id="track-artist">—</p>
+                <div class="track-line" id="track-title-line">
+                    <h2 class="track-title placeholder" id="track-title"><span class="track-text" id="track-title-text">—</span></h2>
+                </div>
+                <div class="track-line" id="track-artist-line">
+                    <p class="track-artist placeholder" id="track-artist"><span class="track-text" id="track-artist-text">—</span></p>
+                </div>
             </div>
             <div class="progress-container" id="progress-container">
                 <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
@@ -383,6 +394,8 @@
         const burgerBtn = document.getElementById('burger-btn'), stationsOverlay = document.getElementById('stations-overlay');
         const stationsListEl = document.getElementById('stations-list'), coverArt = document.getElementById('cover-art');
         const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');
+        const trackTitleLineEl = document.getElementById('track-title-line'), trackArtistLineEl = document.getElementById('track-artist-line');
+        const trackTitleTextEl = document.getElementById('track-title-text'), trackArtistTextEl = document.getElementById('track-artist-text');
         const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');
         const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
@@ -409,8 +422,29 @@
             return `${Math.floor(mins / 60)} ч назад`; 
         }
         function updateStatus(on) { statusBadge.classList.remove('online', 'error'); if (on) { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; } else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
-        function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
+        function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); updateTrackText('—', '—'); }
         function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
+        function applyMarquee(lineEl, textEl) {
+            if (!lineEl || !textEl) return;
+            lineEl.classList.remove('marquee');
+            lineEl.style.removeProperty('--marquee-distance');
+            lineEl.style.removeProperty('--marquee-duration');
+            const overflow = textEl.scrollWidth - lineEl.clientWidth;
+            if (overflow > 8) {
+                const duration = Math.max(9, overflow / 22);
+                lineEl.style.setProperty('--marquee-distance', `${overflow + 16}px`);
+                lineEl.style.setProperty('--marquee-duration', `${duration.toFixed(2)}s`);
+                lineEl.classList.add('marquee');
+            }
+        }
+        function updateTrackText(title, artist) {
+            trackTitleTextEl.textContent = title;
+            trackArtistTextEl.textContent = artist;
+            requestAnimationFrame(() => {
+                applyMarquee(trackTitleLineEl, trackTitleTextEl);
+                applyMarquee(trackArtistLineEl, trackArtistTextEl);
+            });
+        }
 
         // Загрузка списка станций
         async function loadStationsFromAPI() {
@@ -664,8 +698,7 @@
                     const artist = song.artist || 'Unknown Artist';
                     const art = resolveArtUrl(song.art);
                     
-                    trackTitleEl.textContent = title; 
-                    trackArtistEl.textContent = artist;
+                    updateTrackText(title, artist);
                     trackTitleEl.classList.remove('placeholder'); 
                     trackArtistEl.classList.remove('placeholder');
                     setCoverArt(art);
@@ -797,6 +830,7 @@
             document.addEventListener('touchstart', (e) => { globalStartX = e.changedTouches[0].screenX; globalStartY = e.changedTouches[0].screenY; }, { passive: true });
             document.addEventListener('touchend', (e) => { if (stationsOpen || historyOpen) return; const dx = globalStartX - e.changedTouches[0].screenX; const dy = e.changedTouches[0].screenY - globalStartY; Math.abs(dx) > 50 && Math.abs(dx) > 1.5 * Math.abs(dy) && (dx > 0 ? nextBtn.click() : prevBtn.click()); }, { passive: true });
             
+            window.addEventListener('resize', () => { applyMarquee(trackTitleLineEl, trackTitleTextEl); applyMarquee(trackArtistLineEl, trackArtistTextEl); });
             audio.addEventListener('error', () => {});
             audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
         }
