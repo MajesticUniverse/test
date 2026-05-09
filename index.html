@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#1a1030">
+    <meta name="theme-color" content="#2d1f4e">
     <link rel="manifest" href="manifest.json">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,26 +27,29 @@
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
         html, body {
             margin: 0;
-            padding: 0;
             width: 100%;
-            height: 100dvh;
-            background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
-            overflow-x: hidden;
-            overscroll-behavior-y: none;
+            min-height: 100%;
+            background-color: #1a1030;
         }
-        html { height: -webkit-fill-available; }
+        html { height: -webkit-fill-available; overscroll-behavior-y: none; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: var(--text-primary);
-            min-height: -webkit-fill-available;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            position: relative;
+            color: var(--text-primary); min-height: 100vh; min-height: -webkit-fill-available;
             padding-top: env(safe-area-inset-top, 0px);
             padding-bottom: env(safe-area-inset-bottom, 0px);
             padding-left: env(safe-area-inset-left, 0px);
             padding-right: env(safe-area-inset-right, 0px);
+            overflow-x: hidden; display: flex; justify-content: center; align-items: flex-start;
+            position: relative;
+            overscroll-behavior-y: none;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: -25vmax;
+            background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
+            z-index: -1;
+            pointer-events: none;
         }
         .app-container { width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
         .player-card {
@@ -247,7 +250,7 @@
 
             <div class="overlay" id="stations-overlay">
                 <div class="overlay-content">
-                    <div class="overlay-title"> Станции</div>
+                    <div class="overlay-title">📻 Станции</div>
                     <div class="overlay-list" id="stations-list"><div class="overlay-empty">Загрузка станций...</div></div>
                 </div>
             </div>
@@ -259,7 +262,7 @@
                         <span>История треков</span>
                     </div>
                     <div class="overlay-list" id="history-list">
-                        <div class="overlay-empty" id="history-empty"> Загрузка истории...</div>
+                        <div class="overlay-empty" id="history-empty">🎧 Загрузка истории...</div>
                     </div>
                 </div>
             </div>
@@ -390,7 +393,9 @@
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         let stationsOpen = false, historyOpen = false;
+        // Хранилище истории: { stationId: [ {title, artist, art, time} ] }
         let stationHistories = {};
+        // Флаг загрузки истории для каждой станции
         let stationHistoryLoaded = {};
         let lastCoverUrl = '';
 
@@ -407,6 +412,7 @@
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); }
         function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
 
+        // Загрузка списка станций
         async function loadStationsFromAPI() {
             try {
                 const ctrl = new AbortController();
@@ -431,10 +437,11 @@
                     renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
                     return true;
                 }
-            } catch (e) { console.log(' Stations API fallback:', e.message); }
+            } catch (e) { console.log('📻 Stations API fallback:', e.message); }
             return false;
         }
 
+        // Фоллбэк станции (хардкод)
         function initFallbackStations() {
             stations = {}; stationHistories = {}; stationHistoryLoaded = {};
             Object.entries(HARDCODED_STREAMS).forEach(([id, st]) => {
@@ -446,6 +453,7 @@
             renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
         }
 
+        // Загрузка текущего статуса для ВСЕХ станций (PREFETCHING)
         async function loadNowPlayingForAll() {
             const keys = Object.keys(stations);
             if (keys.length === 0) return;
@@ -465,6 +473,7 @@
                     if (data.station?.name) stations[sid].name = data.station.name;
                     if (sid === currentStationKey) setCoverArt(artUrl);
                     
+                    // Загружаем историю из API для каждой станции
                     parseAndSaveHistory(sid, data);
                     stationHistoryLoaded[sid] = true;
 
@@ -474,9 +483,16 @@
             }));
         }
 
+        // Парсинг и сохранение истории из ответа API
         function parseAndSaveHistory(stationId, data) {
+            // AzuraCast может возвращать историю в разных местах:
+            // 1. now_playing.history (для текущей станции)
+            // 2. song_history (для других станций через отдельный эндпоинт)
+            // 3. now_playing.song.history
+            
             let rawHistory = [];
             
+            // Пробуем разные пути для получения истории
             if (data.now_playing?.history && Array.isArray(data.now_playing.history)) {
                 rawHistory = data.now_playing.history;
             } else if (data.song_history && Array.isArray(data.song_history)) {
@@ -492,13 +508,14 @@
                 const entry = rawHistory[i];
                 const songData = entry.song || entry; 
                 
+                // Вычисляем время
                 let time;
                 if (entry.played_at) {
-                    time = entry.played_at * 1000;
+                    time = entry.played_at * 1000; // Unix timestamp в миллисекунды
                 } else if (entry.timestamp) {
                     time = entry.timestamp * 1000;
                 } else {
-                    time = Date.now() - (i + 1) * 180000;
+                    time = Date.now() - (i + 1) * 180000; // Fallback: ~3 мин назад
                 }
                 
                 parsedHist.push({
@@ -512,6 +529,7 @@
             stationHistories[stationId] = parsedHist;
         }
 
+        // Принудительная загрузка истории для конкретной станции
         async function loadStationHistory(stationId) {
             if (stationHistoryLoaded[stationId]) return;
             
@@ -519,6 +537,7 @@
                 const ctrl = new AbortController();
                 setTimeout(() => ctrl.abort(), 5000);
                 
+                // Запрашиваем историю специально для этой станции
                 const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal });
                 if (!res.ok) return;
                 const data = await res.json();
@@ -526,6 +545,7 @@
                 parseAndSaveHistory(stationId, data);
                 stationHistoryLoaded[stationId] = true;
                 
+                // Если история открыта для этой станции - обновляем UI
                 if (historyOpen && stationId === currentStationKey) {
                     renderCurrentHistory();
                 }
@@ -561,9 +581,10 @@
             setCoverArt(st.art); 
             renderStationsList();
             
+            // Если история открыта - загружаем историю для новой станции и обновляем UI
             if (historyOpen) {
                 renderCurrentHistory();
-                loadStationHistory(key);
+                loadStationHistory(key); // Загружаем если ещё не загружена
             }
             
             if (autoPlay) startPlayback(st);
@@ -628,6 +649,7 @@
         function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
+        // Получение метаданных (обновляет историю в реальном времени)
         async function fetchMetadata(apiUrl) {
             if (!isPlaying || !currentStationKey) return;
             try {
@@ -648,6 +670,7 @@
                     trackArtistEl.classList.remove('placeholder');
                     setCoverArt(art);
 
+                    // Обновляем историю в памяти
                     addToStationHistory(currentStationKey, title, artist, art);
                 }
                 
@@ -668,11 +691,13 @@
         function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if (!isPlaying || !trackData.duration) return; const el = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000; el < trackData.duration && updateProgress(el, trackData.duration); }, 500); }
         function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
 
+        // Логика добавления трека в историю конкретной станции
         function addToStationHistory(stationId, title, artist, art) {
             if (!stationId || !title || title === 'Unknown Track') return;
             
             const hist = stationHistories[stationId] || [];
             
+            // Не добавляем дубликат
             if (hist.length > 0 && hist[0].title === title && hist[0].artist === artist) return;
             
             hist.unshift({ 
@@ -685,16 +710,19 @@
             if (hist.length > 5) hist.length = 5;
             stationHistories[stationId] = hist;
             
+            // Если история открыта для этой станции - перерисовываем
             if (historyOpen && stationId === currentStationKey) {
                 renderCurrentHistory();
             }
         }
         
+        // Отрисовка истории для ТЕКУЩЕЙ выбранной станции
         function renderCurrentHistory() {
             if (!currentStationKey) return;
             
             const hist = stationHistories[currentStationKey] || [];
             
+            // Очищаем список
             historyList.querySelectorAll('.history-item').forEach(el => el.remove());
             
             if (hist.length === 0) { 
@@ -729,6 +757,7 @@
             if (stationsOpen) closeStations(); 
             historyOpen = true; 
             
+            // Показываем "Загрузка" если история ещё не загружена
             if (!stationHistoryLoaded[currentStationKey] || stationHistories[currentStationKey].length === 0) {
                 historyEmpty.style.display = 'block';
                 historyEmpty.textContent = '🎧 Загрузка истории...';
@@ -739,6 +768,7 @@
             
             historyOverlay.classList.add('open');
             
+            // Загружаем историю с сервера если ещё не загружена
             if (!stationHistoryLoaded[currentStationKey]) {
                 loadStationHistory(currentStationKey);
             }
@@ -782,4 +812,3 @@
     </script>
 </body>
 </html>
-
