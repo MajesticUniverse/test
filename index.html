@@ -722,7 +722,13 @@
             progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
         }
         function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if (!isPlaying || !trackData.duration) return; const el = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000; el < trackData.duration && updateProgress(el, trackData.duration); }, 500); }
-        function stopProgressAnimation() { progressInterval && (clearInterval(progressInterval), progressInterval = null); progressContainer.classList.remove('active'); }
+        function stopProgressAnimation() {
+            progressInterval && (clearInterval(progressInterval), progressInterval = null);
+            progressContainer.classList.add('active');
+            progressFill.style.width = '0%';
+            progressCurrent.textContent = '0:00';
+            progressDuration.textContent = '0:00';
+        }
 
         // Логика добавления трека в историю конкретной станции
         function addToStationHistory(stationId, title, artist, art) {
