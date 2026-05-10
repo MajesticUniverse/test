@@ -249,7 +249,7 @@
             </div>
             <div class="progress-container" id="progress-container">
                 <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-                <div class="progress-time"><span id="progress-current">0:00</span><span id="progress-duration">0:00</span></div>
+                <div class="progress-time"><span id="progress-current"></span><span id="progress-duration"></span></div>
             </div>
             <div class="controls">
                 <button class="control-btn" id="prev-btn" title="Предыдущая станция"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
@@ -734,8 +734,8 @@
             progressInterval && (clearInterval(progressInterval), progressInterval = null);
             progressContainer.classList.add('active');
             progressFill.style.width = '0%';
-            progressCurrent.textContent = '0:00';
-            progressDuration.textContent = '0:00';
+            progressCurrent.textContent = '';
+            progressDuration.textContent = '';
         }
 
         // Логика добавления трека в историю конкретной станции
