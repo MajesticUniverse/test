@@ -724,7 +724,7 @@
         }
 
         function updateProgress(elapsed, duration) {
-            if (!duration || duration <= 0) return void progressContainer.classList.add('active');
+            if (!duration || duration <= 0) return void progressContainer.classList.remove('active');
             progressContainer.classList.add('active');
             progressFill.style.width = `${Math.min(100, Math.max(0, (elapsed / duration) * 100))}%`;
             progressCurrent.textContent = formatTime(elapsed); progressDuration.textContent = formatTime(duration);
@@ -732,10 +732,10 @@
         function startProgressAnimation() { progressInterval && clearInterval(progressInterval); progressInterval = setInterval(() => { if (!isPlaying || !trackData.duration) return; const el = trackData.elapsed + (Date.now() - trackData.lastUpdate) / 1000; el < trackData.duration && updateProgress(el, trackData.duration); }, 500); }
         function stopProgressAnimation() {
             progressInterval && (clearInterval(progressInterval), progressInterval = null);
-            progressContainer.classList.remove('active');
+            progressContainer.classList.add('active');
             progressFill.style.width = '0%';
-            progressCurrent.textContent = '';
-            progressDuration.textContent = '';
+            progressCurrent.textContent = '0:00';
+            progressDuration.textContent = '0:00';
         }
 
         // Логика добавления трека в историю конкретной станции
