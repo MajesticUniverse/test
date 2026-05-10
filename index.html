@@ -117,10 +117,10 @@
             width: 100%; height: 100%; display: block;
         }
 
-        .track-info { text-align: center; margin-bottom: 20px; height: 72px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; overflow: hidden; }
-        .track-line { position: relative; overflow: hidden; width: 100%; display: flex; align-items: center; justify-content: center; }
-        .track-title { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1; height: 32px; transition: opacity 0.2s ease; }
-        .track-artist { font-size: 17px; color: var(--text-secondary); font-weight: 400; line-height: 1; height: 24px; transition: opacity 0.2s ease; }
+        .track-info { text-align: center; margin-bottom: 24px; height: 84px; display: grid; grid-template-rows: 50px 26px; align-content: start; row-gap: 8px; overflow: hidden; }
+        .track-line { position: relative; overflow: hidden; width: 100%; display: flex; align-items: center; justify-content: center; min-width: 0; }
+        .track-title { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1.25; height: 50px; transition: opacity 0.2s ease; display: flex; align-items: center; justify-content: center; }
+        .track-artist { font-size: 17px; color: var(--text-secondary); font-weight: 400; line-height: 1.2; height: 26px; transition: opacity 0.2s ease; display: flex; align-items: center; justify-content: center; }
         .track-text { display: inline-block; white-space: nowrap; transform: translateX(0); will-change: transform; }
         .track-line.marquee .track-text { animation: marquee-scroll var(--marquee-duration, 12s) linear infinite; }
         .track-line:not(.marquee) .track-text { text-overflow: ellipsis; overflow: hidden; max-width: 100%; }
@@ -621,6 +621,7 @@
                 loadStationHistory(key); // Загружаем если ещё не загружена
             }
             
+            fetchMetadata(st.api, true);
             if (autoPlay) startPlayback(st);
         }
 
@@ -660,18 +661,24 @@
             img.src = artUrl;
         }
 
-        function startPlayback(st) {
-            playbackStarted = false; audio.src = `${st.stream}?t=${Date.now()}`;
-            setTimeout(async () => {
-                try {
-                    await audio.play(); isPlaying = true; playbackStarted = true;
-                    updatePlayButton(); startVisualizer(); updateStatus(true);
-                    errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
-                    fetchMetadata(st.api);
-                    metadataInterval && clearInterval(metadataInterval);
-                    metadataInterval = setInterval(() => fetchMetadata(st.api), 10000);
-                } catch (e) { updateStatus(false); }
-            }, 150);
+        async function startPlayback(st) {
+            playbackStarted = false;
+            audio.src = `${st.stream}?t=${Date.now()}`;
+            fetchMetadata(st.api, true);
+            try {
+                await audio.play();
+                isPlaying = true;
+                playbackStarted = true;
+                updatePlayButton();
+                startVisualizer();
+                updateStatus(true);
+                errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null);
+                fetchMetadata(st.api, true);
+                metadataInterval && clearInterval(metadataInterval);
+                metadataInterval = setInterval(() => fetchMetadata(st.api), 10000);
+            } catch (e) {
+                updateStatus(false);
+            }
         }
         function stopPlayback() {
             audio.pause(); audio.src = ''; isPlaying = false; playbackStarted = false; updatePlayButton();
@@ -684,8 +691,8 @@
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
         // Получение метаданных (обновляет историю в реальном времени)
-        async function fetchMetadata(apiUrl) {
-            if (!isPlaying || !currentStationKey) return;
+        async function fetchMetadata(apiUrl, force = false) {
+            if ((!isPlaying && !force) || !currentStationKey) return;
             try {
                 const res = await fetch(`${apiUrl}?r=${Math.random()}`, { cache: 'no-store' });
                 if (!res.ok) return;
