@@ -19,6 +19,7 @@
     <style>
         :root {
             --bg-primary: #2d1f4e; --bg-secondary: #3d2a6e; --bg-tertiary: #4a3580;
+            --player-card-bg: #1f0f4a;
             --text-primary: #ffffff; --text-secondary: #d4c4e8; --text-muted: #9d8bbd;
             --accent: #7c3aed; --accent-light: #a78bfa; --success: #10b981; --error: #ef4444;
             --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4); --border-radius: 16px; --border-radius-lg: 24px;
@@ -53,7 +54,7 @@
         }
         .app-container { width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
         .player-card {
-            width: 100%; background: rgba(45, 31, 78, 0.6); backdrop-filter: blur(20px);
+            width: 100%; background: var(--player-card-bg); backdrop-filter: blur(20px);
             border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 24px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;
         }
