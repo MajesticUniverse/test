@@ -122,7 +122,6 @@
         .track-title { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1.25; height: 50px; transition: opacity 0.2s ease; display: flex; align-items: center; justify-content: center; }
         .track-artist { font-size: 17px; color: var(--text-secondary); font-weight: 400; line-height: 1.2; height: 26px; transition: opacity 0.2s ease; display: flex; align-items: center; justify-content: center; }
         .track-text { display: inline-block; white-space: nowrap; transform: translateX(0); will-change: transform; }
-        .track-line.marquee { justify-content: flex-start; }
         .track-line.marquee .track-text { animation: marquee-scroll var(--marquee-duration, 12s) linear infinite; }
         .track-line:not(.marquee) .track-text { text-overflow: ellipsis; overflow: hidden; max-width: 100%; }
         .track-title.placeholder, .track-artist.placeholder { opacity: 0.5; }
@@ -249,7 +248,7 @@
             </div>
             <div class="progress-container" id="progress-container">
                 <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-                <div class="progress-time"><span id="progress-current"></span><span id="progress-duration"></span></div>
+                <div class="progress-time"><span id="progress-current">0:00</span><span id="progress-duration">0:00</span></div>
             </div>
             <div class="controls">
                 <button class="control-btn" id="prev-btn" title="Предыдущая станция"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8v16zM5 19V5h2v14H5z"/></svg></button>
@@ -734,8 +733,8 @@
             progressInterval && (clearInterval(progressInterval), progressInterval = null);
             progressContainer.classList.add('active');
             progressFill.style.width = '0%';
-            progressCurrent.textContent = '';
-            progressDuration.textContent = '';
+            progressCurrent.textContent = '0:00';
+            progressDuration.textContent = '0:00';
         }
 
         // Логика добавления трека в историю конкретной станции
