@@ -122,6 +122,7 @@
         .track-title { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1.25; height: 50px; transition: opacity 0.2s ease; display: flex; align-items: center; justify-content: center; }
         .track-artist { font-size: 17px; color: var(--text-secondary); font-weight: 400; line-height: 1.2; height: 26px; transition: opacity 0.2s ease; display: flex; align-items: center; justify-content: center; }
         .track-text { display: inline-block; white-space: nowrap; transform: translateX(0); will-change: transform; }
+        .track-line.marquee { justify-content: flex-start; }
         .track-line.marquee .track-text { animation: marquee-scroll var(--marquee-duration, 12s) linear infinite; }
         .track-line:not(.marquee) .track-text { text-overflow: ellipsis; overflow: hidden; max-width: 100%; }
         .track-title.placeholder, .track-artist.placeholder { opacity: 0.5; }
