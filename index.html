@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majestic Radio">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#2d1f4e">
+    <meta name="theme-color" content="#1a1030">
     <link rel="manifest" href="manifest.json">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -47,15 +47,15 @@
             content: '';
             position: fixed;
             inset: -25vmax;
-            background: linear-gradient(135deg, #1a1030 0%, #2d1f4e 50%, #3d2a6e 100%);
+            background: #1a1030;
             z-index: -1;
             pointer-events: none;
         }
-        .app-container { width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
+        .app-container { width: 100%; max-width: 430px; min-height: 100vh; min-height: -webkit-fill-available; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; }
         .player-card {
             width: 100%; background: #1a1030; backdrop-filter: blur(20px);
-            border-radius: var(--border-radius-lg); border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 24px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden;
+            border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 24px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); position: relative; overflow: hidden;
         }
         .app-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
         .logo { display: flex; align-items: center; gap: 12px; }
@@ -214,7 +214,30 @@
         .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
         
-        @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px; } }
+        @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px 12px; } }
+        @media (max-width: 768px) {
+            .app-container { max-width: none; padding: 0; }
+            .player-card {
+                min-height: 100vh;
+                min-height: -webkit-fill-available;
+                border-radius: 0;
+                border-left: 0;
+                border-right: 0;
+                border-bottom: 0;
+                box-shadow: none;
+                padding: 24px 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+            }
+        }
+        @media (min-width: 769px) {
+            .app-container {
+                justify-content: center;
+                padding-top: 28px;
+                padding-bottom: 28px;
+            }
+            .player-card {
+                max-height: min(920px, calc(100vh - 56px));
+            }
+        }
         @media (max-width: 400px) { .play-btn { width: 68px; height: 68px; } .controls { gap: 20px; } }
     </style>
 </head>
