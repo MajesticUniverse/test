@@ -170,7 +170,7 @@
             transform: scale(0.95);
         }
         .overlay.open { opacity: 1; visibility: visible; transform: scale(1); }
-        .overlay-content { display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 1; pointer-events: auto; }
+        .overlay-content { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 430px; z-index: 1; pointer-events: auto; }
         .overlay-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
         .overlay-title svg { width: 20px; height: 20px; fill: var(--accent-light); }
         .overlay-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px; }
@@ -213,6 +213,23 @@
         .history-time svg { width: 12px; height: 12px; fill: var(--text-muted); }
         
         
+        @media (max-width: 768px) {
+            .overlay {
+                position: fixed;
+                inset: 0;
+                border-radius: 0;
+                justify-content: flex-start;
+                padding: calc(env(safe-area-inset-top, 0px) + 88px) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+            }
+            .overlay-content {
+                height: 100%;
+            }
+            .overlay-list {
+                flex: 1;
+                max-height: none;
+            }
+        }
+
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px 12px; } }
         @media (max-width: 768px) {
             .app-container { max-width: none; padding: 0; }
