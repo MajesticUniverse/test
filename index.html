@@ -60,6 +60,8 @@
         .app-header { width: calc(100% - 18px); margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
         .logo { display: flex; align-items: center; gap: 12px; }
         .radio-title { font-size: 18px; font-weight: 600; color: var(--text-primary); letter-spacing: 1px; }
+        .radio-title .radio-i { color: var(--text-muted); transition: color 0.25s ease, text-shadow 0.25s ease; }
+        .radio-title .radio-i.online { color: var(--success); text-shadow: 0 0 8px rgba(16, 185, 129, 0.55); }
         .header-right { display: flex; align-items: center; gap: 8px; }
         .header-btn {
             width: 39px; height: 39px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.1);
@@ -210,9 +212,6 @@
         .history-time { font-size: 11px; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
         .history-time svg { width: 12px; height: 12px; fill: var(--text-muted); }
         
-        .status-badge { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
-        .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
-        .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
         
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px 12px; } }
         @media (max-width: 768px) {
@@ -245,9 +244,8 @@
     <div class="app-container">
         <div class="player-card">
             <header class="app-header">
-                <div class="logo"><h1 class="radio-title">MAJESTIC<br>RADIO</h1></div>
+                <div class="logo"><h1 class="radio-title">MAJESTIC<br>RAD<span class="radio-i" id="radio-status-i">I</span>O</h1></div>
                 <div class="header-right">
-                    <div class="status-badge" id="status-badge"><span>Оффлайн</span></div>
                     <button class="header-btn" id="history-btn" title="История треков">
                         <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
                     </button>
@@ -420,7 +418,7 @@
         const trackTitleEl = document.getElementById('track-title'), trackArtistEl = document.getElementById('track-artist');
         const trackTitleLineEl = document.getElementById('track-title-line'), trackArtistLineEl = document.getElementById('track-artist-line');
         const trackTitleTextEl = document.getElementById('track-title-text'), trackArtistTextEl = document.getElementById('track-artist-text');
-        const statusBadge = document.getElementById('status-badge'), progressContainer = document.getElementById('progress-container');
+        const radioStatusI = document.getElementById('radio-status-i'), progressContainer = document.getElementById('progress-container');
         const progressFill = document.getElementById('progress-fill'), progressCurrent = document.getElementById('progress-current'), progressDuration = document.getElementById('progress-duration');
         const playIcon = document.getElementById('play-icon'), pauseIcon = document.getElementById('pause-icon');
         const historyBtn = document.getElementById('history-btn'), historyOverlay = document.getElementById('history-overlay');
@@ -445,7 +443,7 @@
             if (mins < 60) return `${mins} мин назад`; 
             return `${Math.floor(mins / 60)} ч назад`; 
         }
-        function updateStatus(on) { statusBadge.classList.remove('online', 'error'); if (on) { statusBadge.classList.add('online'); statusBadge.innerHTML = '<span>В эфире</span>'; } else statusBadge.innerHTML = '<span>Оффлайн</span>'; }
+        function updateStatus(on) { if (!radioStatusI) return; radioStatusI.classList.toggle('online', Boolean(on)); }
         function initPlaceholders() { trackTitleEl.classList.add('placeholder'); trackArtistEl.classList.add('placeholder'); updateTrackText('—', '—'); }
         function resolveArtUrl(art) { if (!art?.trim()) return DEFAULT_COVER_SVG; return art.startsWith('http') ? art : BASE_URL + art; }
         function applyMarquee(lineEl, textEl) {
