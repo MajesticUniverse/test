@@ -872,9 +872,25 @@
             audio.addEventListener('playing', () => { playbackStarted = true; updateStatus(true); errorTimeout && (clearTimeout(errorTimeout), errorTimeout = null); });
         }
 
+        async function initializeApp() {
+            initPlaceholders();
+            setupEventListeners();
+            initFallbackStations();
+
+            const loadedFromApi = await loadStationsFromAPI();
+            if (loadedFromApi) {
+                await loadNowPlayingForAll();
+            } else if (currentStationKey && stations[currentStationKey]) {
+                await fetchMetadata(stations[currentStationKey].api, true);
+            }
+
+            if (currentStationKey && stations[currentStationKey]) {
+                startPlayback(stations[currentStationKey]).catch(() => {});
+            }
+        }
+
         try {
-            initPlaceholders(); setupEventListeners(); initFallbackStations();
-            loadStationsFromAPI().then(ok => { if (ok) loadNowPlayingForAll(); });
+            initializeApp().catch(() => {});
         } catch (e) { console.error("Init Error:", e); }
 
         if (window.Telegram && window.Telegram.WebApp) { try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand && tg.expand(); } catch (e) {} }
