@@ -312,6 +312,7 @@
         // ==========================================
         let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
         let vizFreqData = null, vizAnimId = null, isVizRunning = false;
+        let vizPrimedByGesture = false;
         const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.8, BASE_Y: 0.98 };
         const vizNodes = [];
         for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
@@ -336,6 +337,21 @@
             } catch (e) { return false; }
         }
         
+
+        async function primeVisualizerOnGesture() {
+            if (vizPrimedByGesture) return;
+            vizPrimedByGesture = true;
+            if (!initAudioAnalysis()) return;
+            try {
+                if (vizAudioCtx && vizAudioCtx.state === 'suspended') {
+                    await vizAudioCtx.resume();
+                }
+            } catch (e) {
+                // iOS может отклонить resume вне жеста, повторим позже
+                vizPrimedByGesture = false;
+            }
+        }
+
         function drawConstellation() {
             if (!vizCanvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
@@ -382,7 +398,7 @@
         function startVisualizer() {
             vizContainer.classList.add('active');
             if (!initAudioAnalysis()) return;
-            if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
+            if (vizAudioCtx && vizAudioCtx.state === 'suspended') { vizAudioCtx.resume().catch(() => { vizPrimedByGesture = false; }); }
             if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
         }
         function stopVisualizer() {
@@ -849,7 +865,12 @@
         }
 
         function setupEventListeners() {
-            playBtn.addEventListener('click', togglePlay);
+            playBtn.addEventListener('click', async () => {
+                await primeVisualizerOnGesture();
+                togglePlay();
+            });
+            playBtn.addEventListener('touchend', () => { primeVisualizerOnGesture(); }, { passive: true });
+            document.addEventListener('pointerdown', () => { primeVisualizerOnGesture(); }, { passive: true, once: true });
             historyBtn.addEventListener('click', (e) => { e.stopPropagation(); if (historyOpen) closeHistory(); else openHistory(); });
             prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
             nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
