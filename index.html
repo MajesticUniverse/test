@@ -312,6 +312,51 @@
         // ==========================================
         let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
         let vizFreqData = null, vizAnimId = null, isVizRunning = false;
+        let vizPrimedByGesture = false;
+        let vizDebugInterval = null;
+
+        function logVizDebug(message, extra = {}) {
+            const snapshot = {
+                at: new Date().toISOString(),
+                message,
+                ctxState: vizAudioCtx ? vizAudioCtx.state : 'none',
+                hasAnalyser: !!vizAnalyser,
+                hasSourceNode: !!vizSourceNode,
+                audioReadyState: radioAudioEl.readyState,
+                audioPaused: radioAudioEl.paused,
+                audioCurrentTime: Number(radioAudioEl.currentTime || 0).toFixed(2),
+                ...extra
+            };
+            console.log('[VIZ DEBUG]', snapshot);
+            window.__vizLastDebug = snapshot;
+        }
+
+        function getVizEnergyStats() {
+            if (!vizAnalyser || !vizFreqData) return { avg: 0, peak: 0 };
+            vizAnalyser.getByteFrequencyData(vizFreqData);
+            let sum = 0, peak = 0;
+            for (let i = 0; i < vizFreqData.length; i++) {
+                const v = vizFreqData[i];
+                sum += v;
+                if (v > peak) peak = v;
+            }
+            const avg = vizFreqData.length ? +(sum / vizFreqData.length).toFixed(2) : 0;
+            return { avg, peak };
+        }
+
+        function startVizDebugTicker() {
+            if (vizDebugInterval) return;
+            vizDebugInterval = setInterval(() => {
+                const stats = getVizEnergyStats();
+                logVizDebug('ticker', { energyAvg: stats.avg, energyPeak: stats.peak });
+            }, 2000);
+        }
+
+        function stopVizDebugTicker() {
+            if (!vizDebugInterval) return;
+            clearInterval(vizDebugInterval);
+            vizDebugInterval = null;
+        }
         const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.8, BASE_Y: 0.98 };
         const vizNodes = [];
         for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
@@ -319,6 +364,17 @@
         const vizCanvasCtx = vizCanvas.getContext('2d');
         const vizContainer = document.getElementById('visualizer-container');
         const radioAudioEl = document.getElementById('audio-player');
+
+        const __vizDebugBoot = {
+            info: 'vizDebug is booting. Wait for page load, then run vizDebug.getState()',
+            getState: () => ({ status: 'booting' }),
+            log: (label = 'booting') => ({ status: 'booting', label }),
+            startTicker: () => ({ status: 'booting' }),
+            stopTicker: () => ({ status: 'booting' })
+        };
+        window.vizDebug = __vizDebugBoot;
+        globalThis.vizDebug = __vizDebugBoot;
+        window.vd = __vizDebugBoot;
         
         function initAudioAnalysis() {
             if (vizAudioCtx) return true;
@@ -332,10 +388,29 @@
                 vizSourceNode = vizAudioCtx.createMediaElementSource(radioAudioEl);
                 vizSourceNode.connect(vizAnalyser);
                 vizAnalyser.connect(vizAudioCtx.destination);
+                logVizDebug('initAudioAnalysis:ok', { sampleRate: vizAudioCtx.sampleRate });
                 return true;
-            } catch (e) { return false; }
+            } catch (e) { logVizDebug('initAudioAnalysis:fail', { error: e && e.message ? e.message : String(e) }); return false; }
         }
         
+
+        async function primeVisualizerOnGesture() {
+            if (vizPrimedByGesture) return;
+            logVizDebug('prime:start');
+            vizPrimedByGesture = true;
+            if (!initAudioAnalysis()) { vizPrimedByGesture = false; logVizDebug('prime:init-fail'); return; }
+            try {
+                if (vizAudioCtx && vizAudioCtx.state === 'suspended') {
+                    await vizAudioCtx.resume();
+                    logVizDebug('prime:resume-ok');
+                }
+            } catch (e) {
+                // iOS может отклонить resume вне жеста, повторим позже
+                vizPrimedByGesture = false;
+                logVizDebug('prime:resume-fail', { error: e && e.message ? e.message : String(e) });
+            }
+        }
+
         function drawConstellation() {
             if (!vizCanvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
@@ -382,11 +457,11 @@
         function startVisualizer() {
             vizContainer.classList.add('active');
             if (!initAudioAnalysis()) return;
-            if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
-            if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
+            if (vizAudioCtx && vizAudioCtx.state === 'suspended') { vizAudioCtx.resume().then(() => { logVizDebug('startVisualizer:resume-ok'); }).catch((e) => { vizPrimedByGesture = false; logVizDebug('startVisualizer:resume-fail', { error: e && e.message ? e.message : String(e) }); }); }
+            if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); logVizDebug('startVisualizer:running'); startVizDebugTicker(); }
         }
         function stopVisualizer() {
-            vizContainer.classList.remove('active'); isVizRunning = false; cancelAnimationFrame(vizAnimId);
+            vizContainer.classList.remove('active'); isVizRunning = false; cancelAnimationFrame(vizAnimId); stopVizDebugTicker(); logVizDebug('stopVisualizer');
             if (vizCanvasCtx) { const rect = vizCanvas.getBoundingClientRect(); vizCanvasCtx.clearRect(0, 0, rect.width, rect.height); }
         }
         function vizCleanup() {
@@ -849,7 +924,12 @@
         }
 
         function setupEventListeners() {
-            playBtn.addEventListener('click', togglePlay);
+            playBtn.addEventListener('click', async () => {
+                await primeVisualizerOnGesture();
+                togglePlay();
+            });
+            playBtn.addEventListener('touchend', () => { primeVisualizerOnGesture(); }, { passive: true });
+            document.addEventListener('pointerdown', () => { primeVisualizerOnGesture(); }, { passive: true, once: true });
             historyBtn.addEventListener('click', (e) => { e.stopPropagation(); if (historyOpen) closeHistory(); else openHistory(); });
             prevBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx <= 0 ? keys.length - 1 : idx - 1]); });
             nextBtn.addEventListener('click', () => { const keys = Object.keys(stations); if (!keys.length) return; const idx = keys.indexOf(currentStationKey); switchStation(keys[idx >= keys.length - 1 ? 0 : idx + 1]); });
@@ -895,6 +975,28 @@
 
         if (window.Telegram && window.Telegram.WebApp) { try { const tg = window.Telegram.WebApp; tg.ready(); tg.expand && tg.expand(); } catch (e) {} }
         window.addEventListener('beforeunload', () => { stopPlayback(); vizCleanup(); });
+        const vizDebugApi = {
+            log: (label = 'manual-log') => {
+                const stats = getVizEnergyStats();
+                logVizDebug(label, { energyAvg: stats.avg, energyPeak: stats.peak });
+                return window.__vizLastDebug;
+            },
+            startTicker: startVizDebugTicker,
+            stopTicker: stopVizDebugTicker,
+            getState: () => ({
+                ctxState: vizAudioCtx ? vizAudioCtx.state : 'none',
+                primed: vizPrimedByGesture,
+                isVizRunning,
+                hasAnalyser: !!vizAnalyser,
+                hasSourceNode: !!vizSourceNode,
+                audioSrc: radioAudioEl.currentSrc || radioAudioEl.src || '',
+                crossOrigin: radioAudioEl.crossOrigin || null,
+                energy: getVizEnergyStats()
+            })
+        };
+        window.vizDebug = vizDebugApi;
+        globalThis.vizDebug = vizDebugApi;
+        window.vd = vizDebugApi;
         window.RadioApp = { stations, currentStationKey, switchStation, togglePlay, audio, stationHistories };
     </script>
 </body>
