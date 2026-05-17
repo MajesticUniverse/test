@@ -28,13 +28,14 @@
         html, body {
             margin: 0;
             width: 100%;
-            min-height: 100%;
+            height: 100%;
             background-color: #1a1030;
+            overflow: hidden;
         }
         html { height: -webkit-fill-available; overscroll-behavior-y: none; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: var(--text-primary); min-height: 100vh; min-height: -webkit-fill-available;
+            color: var(--text-primary); height: 100vh; height: -webkit-fill-available;
             padding-top: env(safe-area-inset-top, 0px);
             padding-bottom: env(safe-area-inset-bottom, 0px);
             padding-left: env(safe-area-inset-left, 0px);
@@ -51,7 +52,7 @@
             z-index: -1;
             pointer-events: none;
         }
-        .app-container { width: 100%; max-width: 430px; min-height: 100vh; min-height: -webkit-fill-available; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; }
+        .app-container { width: 100%; max-width: 430px; height: 100vh; height: -webkit-fill-available; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
         .player-card {
             width: 100%; background: #1a1030; backdrop-filter: blur(20px);
             border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.12); border-top: none;
@@ -218,8 +219,8 @@
         @media (max-width: 768px) {
             .app-container { max-width: none; padding: 0; }
             .player-card {
-                min-height: 100vh;
-                min-height: -webkit-fill-available;
+                height: 100vh;
+                height: -webkit-fill-available;
                 border-radius: 0;
                 border-left: 0;
                 border-right: 0;
