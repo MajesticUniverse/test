@@ -308,96 +308,210 @@
     
     <script>
         // ==========================================
-        // CONSTELLATION VISUALIZER
+        // CONSTELLATION VISUALIZER FIXED FOR IOS
         // ==========================================
-        let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
-        let vizFreqData = null, vizAnimId = null, isVizRunning = false;
-        const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.8, BASE_Y: 0.98 };
+        let vizAudioCtx = null;
+        let vizAnalyser = null;
+        let vizSourceNode = null;
+        let vizFreqData = null;
+        let vizAnimId = null;
+        let isVizRunning = false;
+        let vizInitialized = false;
+
+        const VIZ_CONFIG = {
+            NUM_NODES: 48,
+            CONN_DISTANCE: 45,
+            FFT_SIZE: 1024,
+            SMOOTHING: 0.8,
+            MAX_FREQ: 10000,
+            NODE_HEIGHT: 0.8,
+            BASE_Y: 0.98
+        };
+
         const vizNodes = [];
-        for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+
+        for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+            vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+        }
+
         const vizCanvas = document.getElementById('visualizer-canvas');
         const vizCanvasCtx = vizCanvas.getContext('2d');
         const vizContainer = document.getElementById('visualizer-container');
         const radioAudioEl = document.getElementById('audio-player');
-        
+
         function initAudioAnalysis() {
-            if (vizAudioCtx) return true;
+            if (vizInitialized) return true;
+
             try {
                 vizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 vizAnalyser = vizAudioCtx.createAnalyser();
                 vizAnalyser.fftSize = VIZ_CONFIG.FFT_SIZE;
                 vizAnalyser.smoothingTimeConstant = VIZ_CONFIG.SMOOTHING;
                 vizFreqData = new Uint8Array(vizAnalyser.frequencyBinCount);
-                if (vizSourceNode) { try { vizSourceNode.disconnect(); } catch(e) {} }
+
+                radioAudioEl.crossOrigin = 'anonymous';
+
                 vizSourceNode = vizAudioCtx.createMediaElementSource(radioAudioEl);
                 vizSourceNode.connect(vizAnalyser);
                 vizAnalyser.connect(vizAudioCtx.destination);
+
+                vizInitialized = true;
                 return true;
-            } catch (e) { return false; }
+            } catch (e) {
+                console.error('Visualizer init error:', e);
+                return false;
+            }
         }
-        
+
+        async function ensureAudioContextRunning() {
+            if (!vizAudioCtx) return false;
+
+            if (vizAudioCtx.state === 'suspended') {
+                try {
+                    await vizAudioCtx.resume();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            return vizAudioCtx.state === 'running';
+        }
+
         function drawConstellation() {
-            if (!vizCanvasCtx) return;
+            if (!vizCanvasCtx || !vizAnalyser || !vizFreqData) {
+                vizAnimId = requestAnimationFrame(drawConstellation);
+                return;
+            }
+
             const dpr = window.devicePixelRatio || 1;
             const rect = vizCanvas.getBoundingClientRect();
-            vizCanvas.width = rect.width * dpr; vizCanvas.height = rect.height * dpr;
+
+            vizCanvas.width = rect.width * dpr;
+            vizCanvas.height = rect.height * dpr;
             vizCanvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            const w = rect.width, h = rect.height;
+
+            const w = rect.width;
+            const h = rect.height;
+
             vizCanvasCtx.clearRect(0, 0, w, h);
-            if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
             vizAnalyser.getByteFrequencyData(vizFreqData);
+
             const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
             const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
-            const vizPadding = 5, drawWidth = w - vizPadding * 2;
-            for (let ni = 0; ni < VIZ_CONFIG.NUM_NODES; ni++) {
-                const ratio = ni / (VIZ_CONFIG.NUM_NODES - 1);
+
+            const vizPadding = 5;
+            const drawWidth = w - vizPadding * 2;
+
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                const ratio = i / (VIZ_CONFIG.NUM_NODES - 1);
                 const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
                 const val = vizFreqData[bin] / 255;
-                vizNodes[ni].x = vizPadding + ratio * drawWidth;
-                vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
-                vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
-                vizNodes[ni].energy = val;
+
+                vizNodes[i].x = vizPadding + ratio * drawWidth;
+                vizNodes[i].targetY = h * VIZ_CONFIG.BASE_Y - val * h * VIZ_CONFIG.NODE_HEIGHT;
+                vizNodes[i].y += (vizNodes[i].targetY - vizNodes[i].y) * 0.15;
+                vizNodes[i].energy = val;
             }
+
             vizCanvasCtx.lineWidth = 0.8;
-            for (let li = 0; li < VIZ_CONFIG.NUM_NODES; li++) {
-                for (let lj = li + 1; lj < VIZ_CONFIG.NUM_NODES; lj++) {
-                    const dx = vizNodes[li].x - vizNodes[lj].x, dy = vizNodes[li].y - vizNodes[lj].y, distSq = dx * dx + dy * dy;
+
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                for (let j = i + 1; j < VIZ_CONFIG.NUM_NODES; j++) {
+                    const dx = vizNodes[i].x - vizNodes[j].x;
+                    const dy = vizNodes[i].y - vizNodes[j].y;
+                    const distSq = dx * dx + dy * dy;
+
                     if (distSq < VIZ_CONFIG.CONN_DISTANCE ** 2) {
                         const dist = Math.sqrt(distSq);
-                        const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[li].energy + vizNodes[lj].energy);
+                        const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[i].energy + vizNodes[j].energy);
                         vizCanvasCtx.strokeStyle = `rgba(180,160,255,${Math.max(0, Math.min(1, alpha))})`;
-                        vizCanvasCtx.beginPath(); vizCanvasCtx.moveTo(vizNodes[li].x, vizNodes[li].y); vizCanvasCtx.lineTo(vizNodes[lj].x, vizNodes[lj].y); vizCanvasCtx.stroke();
+                        vizCanvasCtx.beginPath();
+                        vizCanvasCtx.moveTo(vizNodes[i].x, vizNodes[i].y);
+                        vizCanvasCtx.lineTo(vizNodes[j].x, vizNodes[j].y);
+                        vizCanvasCtx.stroke();
                     }
                 }
             }
-            for (let pi = 0; pi < VIZ_CONFIG.NUM_NODES; pi++) {
-                const n = vizNodes[pi], r = 1.2 + n.energy * 3.5, alpha = 0.4 + n.energy * 0.6;
-                vizCanvasCtx.shadowColor = `rgba(167,139,250,${alpha * 0.6})`; vizCanvasCtx.shadowBlur = 6;
+
+            for (let i = 0; i < VIZ_CONFIG.NUM_NODES; i++) {
+                const n = vizNodes[i];
+                const r = 1.2 + n.energy * 3.5;
+                const alpha = 0.4 + n.energy * 0.6;
+
+                vizCanvasCtx.shadowColor = `rgba(167,139,250,${alpha * 0.6})`;
+                vizCanvasCtx.shadowBlur = 6;
                 vizCanvasCtx.fillStyle = `rgba(255,255,255,${alpha})`;
-                vizCanvasCtx.beginPath(); vizCanvasCtx.arc(n.x, n.y, r, 0, Math.PI * 2); vizCanvasCtx.fill();
+                vizCanvasCtx.beginPath();
+                vizCanvasCtx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                vizCanvasCtx.fill();
                 vizCanvasCtx.shadowBlur = 0;
             }
+
             vizAnimId = requestAnimationFrame(drawConstellation);
         }
-        function startVisualizer() {
+
+        async function startVisualizer() {
             vizContainer.classList.add('active');
             if (!initAudioAnalysis()) return;
-            if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
-            if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
+
+            const running = await ensureAudioContextRunning();
+            if (!running) return;
+
+            if (!isVizRunning) {
+                isVizRunning = true;
+                cancelAnimationFrame(vizAnimId);
+                drawConstellation();
+            }
         }
+
         function stopVisualizer() {
-            vizContainer.classList.remove('active'); isVizRunning = false; cancelAnimationFrame(vizAnimId);
-            if (vizCanvasCtx) { const rect = vizCanvas.getBoundingClientRect(); vizCanvasCtx.clearRect(0, 0, rect.width, rect.height); }
+            vizContainer.classList.remove('active');
+            isVizRunning = false;
+            cancelAnimationFrame(vizAnimId);
+
+            if (vizCanvasCtx) {
+                const rect = vizCanvas.getBoundingClientRect();
+                vizCanvasCtx.clearRect(0, 0, rect.width, rect.height);
+            }
         }
+
         function vizCleanup() {
             stopVisualizer();
-            if (vizSourceNode) { try { vizSourceNode.disconnect(); } catch(e) {} vizSourceNode = null; }
-            if (vizAnalyser) { try { vizAnalyser.disconnect(); } catch(e) {} vizAnalyser = null; }
-            if (vizAudioCtx && vizAudioCtx.state !== 'closed') { vizAudioCtx.close().catch(() => {}); vizAudioCtx = null; }
+
+            if (vizSourceNode) {
+                try {
+                    vizSourceNode.disconnect();
+                } catch (e) {}
+                vizSourceNode = null;
+            }
+
+            if (vizAnalyser) {
+                try {
+                    vizAnalyser.disconnect();
+                } catch (e) {}
+                vizAnalyser = null;
+            }
+
+            if (vizAudioCtx && vizAudioCtx.state !== 'closed') {
+                vizAudioCtx.close().catch(() => {});
+                vizAudioCtx = null;
+            }
+
+            vizFreqData = null;
+            vizInitialized = false;
         }
-        function vizResizeCanvas() { if (!vizCanvasCtx) return; const dpr = window.devicePixelRatio || 1; const rect = vizCanvas.getBoundingClientRect(); vizCanvas.width = rect.width * dpr; vizCanvas.height = rect.height * dpr; }
-        window.addEventListener('resize', vizResizeCanvas); vizResizeCanvas();
-        
+
+        function vizResizeCanvas() {
+            if (!vizCanvasCtx) return;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = vizCanvas.getBoundingClientRect();
+            vizCanvas.width = rect.width * dpr;
+            vizCanvas.height = rect.height * dpr;
+        }
+
+        window.addEventListener('resize', vizResizeCanvas);
+        vizResizeCanvas();
+
         // ==========================================
         // RADIO CORE & HISTORY
         // ==========================================
