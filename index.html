@@ -312,9 +312,22 @@
         // ==========================================
         let vizAudioCtx = null, vizAnalyser = null, vizSourceNode = null;
         let vizFreqData = null, vizAnimId = null, isVizRunning = false;
-        const VIZ_CONFIG = { NUM_NODES: 48, CONN_DISTANCE: 45, FFT_SIZE: 2048, SMOOTHING: 0.75, MAX_FREQ: 10000, NODE_HEIGHT: 0.8, BASE_Y: 0.98 };
+        
+        const VIZ_CONFIG = {
+            NUM_NODES: 48,
+            CONN_DISTANCE: 45,
+            FFT_SIZE: 2048,
+            SMOOTHING: 0.75,
+            MAX_FREQ: 10000,
+            NODE_HEIGHT: 0.75,
+            BASE_Y: 0.85
+        };
+        
         const vizNodes = [];
-        for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+        for (let vi = 0; vi < VIZ_CONFIG.NUM_NODES; vi++) {
+            vizNodes.push({ x: 0, y: 0, energy: 0, targetY: 0 });
+        }
+        
         const vizCanvas = document.getElementById('visualizer-canvas');
         const vizCanvasCtx = vizCanvas.getContext('2d');
         const vizContainer = document.getElementById('visualizer-container');
@@ -340,63 +353,109 @@
             if (!vizCanvasCtx) return;
             const dpr = window.devicePixelRatio || 1;
             const rect = vizCanvas.getBoundingClientRect();
-            vizCanvas.width = rect.width * dpr; vizCanvas.height = rect.height * dpr;
+            vizCanvas.width = rect.width * dpr; 
+            vizCanvas.height = rect.height * dpr;
             vizCanvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            const w = rect.width, h = rect.height;
+            
+            const w = rect.width;
+            const h = rect.height;
             vizCanvasCtx.clearRect(0, 0, w, h);
-            if (!vizAnalyser || !vizFreqData) { vizAnimId = requestAnimationFrame(drawConstellation); return; }
+            
+            if (!vizAnalyser || !vizFreqData) { 
+                vizAnimId = requestAnimationFrame(drawConstellation); 
+                return; 
+            }
+            
             vizAnalyser.getByteFrequencyData(vizFreqData);
             const binWidth = vizAudioCtx.sampleRate / vizAnalyser.fftSize;
             const maxFreqBin = Math.min(vizFreqData.length - 1, Math.floor(VIZ_CONFIG.MAX_FREQ / binWidth));
-            const vizPadding = 5, drawWidth = w - vizPadding * 2;
+            
             for (let ni = 0; ni < VIZ_CONFIG.NUM_NODES; ni++) {
                 const ratio = ni / (VIZ_CONFIG.NUM_NODES - 1);
                 const bin = Math.max(0, Math.floor(ratio * maxFreqBin));
                 const val = vizFreqData[bin] / 255;
-                vizNodes[ni].x = vizPadding + ratio * drawWidth;
+                
+                vizNodes[ni].x = ratio * w;
                 vizNodes[ni].targetY = h * VIZ_CONFIG.BASE_Y - (val * h * VIZ_CONFIG.NODE_HEIGHT);
                 vizNodes[ni].y += (vizNodes[ni].targetY - vizNodes[ni].y) * 0.15;
                 vizNodes[ni].energy = val;
             }
+            
             vizCanvasCtx.lineWidth = 0.8;
             for (let li = 0; li < VIZ_CONFIG.NUM_NODES; li++) {
                 for (let lj = li + 1; lj < VIZ_CONFIG.NUM_NODES; lj++) {
-                    const dx = vizNodes[li].x - vizNodes[lj].x, dy = vizNodes[li].y - vizNodes[lj].y, distSq = dx * dx + dy * dy;
+                    const dx = vizNodes[li].x - vizNodes[lj].x;
+                    const dy = vizNodes[li].y - vizNodes[lj].y;
+                    const distSq = dx * dx + dy * dy;
+                    
                     if (distSq < VIZ_CONFIG.CONN_DISTANCE ** 2) {
                         const dist = Math.sqrt(distSq);
                         const alpha = (1 - dist / VIZ_CONFIG.CONN_DISTANCE) * 0.35 * (0.4 + vizNodes[li].energy + vizNodes[lj].energy);
-                        vizCanvasCtx.strokeStyle = `rgba(180,160,255,${Math.max(0, Math.min(1, alpha))})`;
-                        vizCanvasCtx.beginPath(); vizCanvasCtx.moveTo(vizNodes[li].x, vizNodes[li].y); vizCanvasCtx.lineTo(vizNodes[lj].x, vizNodes[lj].y); vizCanvasCtx.stroke();
+                        vizCanvasCtx.strokeStyle = `rgba(180, 160, 255, ${Math.max(0, Math.min(1, alpha))})`;
+                        vizCanvasCtx.beginPath();
+                        vizCanvasCtx.moveTo(vizNodes[li].x, vizNodes[li].y);
+                        vizCanvasCtx.lineTo(vizNodes[lj].x, vizNodes[lj].y);
+                        vizCanvasCtx.stroke();
                     }
                 }
             }
+            
             for (let pi = 0; pi < VIZ_CONFIG.NUM_NODES; pi++) {
-                const n = vizNodes[pi], r = 1.2 + n.energy * 3.5, alpha = 0.4 + n.energy * 0.6;
-                vizCanvasCtx.shadowColor = `rgba(167,139,250,${alpha * 0.6})`; vizCanvasCtx.shadowBlur = 6;
-                vizCanvasCtx.fillStyle = `rgba(255,255,255,${alpha})`;
-                vizCanvasCtx.beginPath(); vizCanvasCtx.arc(n.x, n.y, r, 0, Math.PI * 2); vizCanvasCtx.fill();
+                const n = vizNodes[pi];
+                const r = 1.2 + n.energy * 3.5;
+                const alpha = 0.4 + n.energy * 0.6;
+                
+                vizCanvasCtx.shadowColor = `rgba(167, 139, 250, ${alpha * 0.6})`;
+                vizCanvasCtx.shadowBlur = 6;
+                vizCanvasCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                
+                vizCanvasCtx.beginPath();
+                vizCanvasCtx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                vizCanvasCtx.fill();
+                
                 vizCanvasCtx.shadowBlur = 0;
             }
+            
             vizAnimId = requestAnimationFrame(drawConstellation);
         }
+        
         function startVisualizer() {
             vizContainer.classList.add('active');
             if (!initAudioAnalysis()) return;
             if (vizAudioCtx.state === 'suspended') vizAudioCtx.resume().catch(() => {});
-            if (!isVizRunning) { isVizRunning = true; cancelAnimationFrame(vizAnimId); drawConstellation(); }
+            if (!isVizRunning) { 
+                isVizRunning = true; 
+                cancelAnimationFrame(vizAnimId); 
+                drawConstellation(); 
+            }
         }
+        
         function stopVisualizer() {
-            vizContainer.classList.remove('active'); isVizRunning = false; cancelAnimationFrame(vizAnimId);
-            if (vizCanvasCtx) { const rect = vizCanvas.getBoundingClientRect(); vizCanvasCtx.clearRect(0, 0, rect.width, rect.height); }
+            vizContainer.classList.remove('active'); 
+            isVizRunning = false; 
+            cancelAnimationFrame(vizAnimId);
+            if (vizCanvasCtx) { 
+                const rect = vizCanvas.getBoundingClientRect(); 
+                vizCanvasCtx.clearRect(0, 0, rect.width, rect.height); 
+            }
         }
+        
         function vizCleanup() {
             stopVisualizer();
             if (vizSourceNode) { try { vizSourceNode.disconnect(); } catch(e) {} vizSourceNode = null; }
             if (vizAnalyser) { try { vizAnalyser.disconnect(); } catch(e) {} vizAnalyser = null; }
             if (vizAudioCtx && vizAudioCtx.state !== 'closed') { vizAudioCtx.close().catch(() => {}); vizAudioCtx = null; }
         }
-        function vizResizeCanvas() { if (!vizCanvasCtx) return; const dpr = window.devicePixelRatio || 1; const rect = vizCanvas.getBoundingClientRect(); vizCanvas.width = rect.width * dpr; vizCanvas.height = rect.height * dpr; }
-        window.addEventListener('resize', vizResizeCanvas); vizResizeCanvas();
+        
+        function vizResizeCanvas() { 
+            if (!vizCanvasCtx) return; 
+            const dpr = window.devicePixelRatio || 1; 
+            const rect = vizCanvas.getBoundingClientRect(); 
+            vizCanvas.width = rect.width * dpr; 
+            vizCanvas.height = rect.height * dpr; 
+        }
+        window.addEventListener('resize', vizResizeCanvas); 
+        vizResizeCanvas();
         
         // ==========================================
         // RADIO CORE & HISTORY
@@ -430,9 +489,7 @@
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         let stationsOpen = false, historyOpen = false;
-        // Хранилище истории: { stationId: [ {title, artist, art, time} ] }
         let stationHistories = {};
-        // Флаг загрузки истории для каждой станции
         let stationHistoryLoaded = {};
         let lastCoverUrl = '';
 
@@ -470,7 +527,6 @@
             });
         }
 
-        // Загрузка списка станций
         async function loadStationsFromAPI() {
             try {
                 const ctrl = new AbortController();
@@ -499,7 +555,6 @@
             return false;
         }
 
-        // Фоллбэк станции (хардкод)
         function initFallbackStations() {
             stations = {}; stationHistories = {}; stationHistoryLoaded = {};
             Object.entries(HARDCODED_STREAMS).forEach(([id, st]) => {
@@ -511,7 +566,6 @@
             renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
         }
 
-        // Загрузка текущего статуса для ВСЕХ станций (PREFETCHING)
         async function loadNowPlayingForAll() {
             const keys = Object.keys(stations);
             if (keys.length === 0) return;
@@ -531,7 +585,6 @@
                     if (data.station?.name) stations[sid].name = data.station.name;
                     if (sid === currentStationKey) setCoverArt(artUrl);
                     
-                    // Загружаем историю из API для каждой станции
                     parseAndSaveHistory(sid, data);
                     stationHistoryLoaded[sid] = true;
 
@@ -541,16 +594,8 @@
             }));
         }
 
-        // Парсинг и сохранение истории из ответа API
         function parseAndSaveHistory(stationId, data) {
-            // AzuraCast может возвращать историю в разных местах:
-            // 1. now_playing.history (для текущей станции)
-            // 2. song_history (для других станций через отдельный эндпоинт)
-            // 3. now_playing.song.history
-            
             let rawHistory = [];
-            
-            // Пробуем разные пути для получения истории
             if (data.now_playing?.history && Array.isArray(data.now_playing.history)) {
                 rawHistory = data.now_playing.history;
             } else if (data.song_history && Array.isArray(data.song_history)) {
@@ -566,14 +611,13 @@
                 const entry = rawHistory[i];
                 const songData = entry.song || entry; 
                 
-                // Вычисляем время
                 let time;
                 if (entry.played_at) {
-                    time = entry.played_at * 1000; // Unix timestamp в миллисекунды
+                    time = entry.played_at * 1000;
                 } else if (entry.timestamp) {
                     time = entry.timestamp * 1000;
                 } else {
-                    time = Date.now() - (i + 1) * 180000; // Fallback: ~3 мин назад
+                    time = Date.now() - (i + 1) * 180000;
                 }
                 
                 parsedHist.push({
@@ -587,7 +631,6 @@
             stationHistories[stationId] = parsedHist;
         }
 
-        // Принудительная загрузка истории для конкретной станции
         async function loadStationHistory(stationId) {
             if (stationHistoryLoaded[stationId]) return;
             
@@ -595,7 +638,6 @@
                 const ctrl = new AbortController();
                 setTimeout(() => ctrl.abort(), 5000);
                 
-                // Запрашиваем историю специально для этой станции
                 const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal });
                 if (!res.ok) return;
                 const data = await res.json();
@@ -603,7 +645,6 @@
                 parseAndSaveHistory(stationId, data);
                 stationHistoryLoaded[stationId] = true;
                 
-                // Если история открыта для этой станции - обновляем UI
                 if (historyOpen && stationId === currentStationKey) {
                     renderCurrentHistory();
                 }
@@ -639,10 +680,9 @@
             setCoverArt(st.art); 
             renderStationsList();
             
-            // Если история открыта - загружаем историю для новой станции и обновляем UI
             if (historyOpen) {
                 renderCurrentHistory();
-                loadStationHistory(key); // Загружаем если ещё не загружена
+                loadStationHistory(key);
             }
             
             fetchMetadata(st.api, true);
@@ -714,7 +754,6 @@
         function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
-        // Получение метаданных (обновляет историю в реальном времени)
         async function fetchMetadata(apiUrl, force = false) {
             if ((!isPlaying && !force) || !currentStationKey) return;
             try {
@@ -734,7 +773,6 @@
                     trackArtistEl.classList.remove('placeholder');
                     setCoverArt(art);
 
-                    // Обновляем историю в памяти
                     addToStationHistory(currentStationKey, title, artist, art);
                 }
                 
@@ -761,13 +799,10 @@
             progressDuration.textContent = '0:00';
         }
 
-        // Логика добавления трека в историю конкретной станции
         function addToStationHistory(stationId, title, artist, art) {
             if (!stationId || !title || title === 'Unknown Track') return;
             
             const hist = stationHistories[stationId] || [];
-            
-            // Не добавляем дубликат
             if (hist.length > 0 && hist[0].title === title && hist[0].artist === artist) return;
             
             hist.unshift({ 
@@ -780,19 +815,15 @@
             if (hist.length > 5) hist.length = 5;
             stationHistories[stationId] = hist;
             
-            // Если история открыта для этой станции - перерисовываем
             if (historyOpen && stationId === currentStationKey) {
                 renderCurrentHistory();
             }
         }
         
-        // Отрисовка истории для ТЕКУЩЕЙ выбранной станции
         function renderCurrentHistory() {
             if (!currentStationKey) return;
             
             const hist = stationHistories[currentStationKey] || [];
-            
-            // Очищаем список
             historyList.querySelectorAll('.history-item').forEach(el => el.remove());
             
             if (hist.length === 0) { 
@@ -827,7 +858,6 @@
             if (stationsOpen) closeStations(); 
             historyOpen = true; 
             
-            // Показываем "Загрузка" если история ещё не загружена
             if (!stationHistoryLoaded[currentStationKey] || stationHistories[currentStationKey].length === 0) {
                 historyEmpty.style.display = 'block';
                 historyEmpty.textContent = '🎧 Загрузка истории...';
@@ -838,7 +868,6 @@
             
             historyOverlay.classList.add('open');
             
-            // Загружаем историю с сервера если ещё не загружена
             if (!stationHistoryLoaded[currentStationKey]) {
                 loadStationHistory(currentStationKey);
             }
@@ -899,3 +928,4 @@
     </script>
 </body>
 </html>
+
