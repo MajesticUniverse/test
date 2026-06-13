@@ -215,7 +215,9 @@
         .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
         
         @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px 12px; } }
-        @media (max-width: 768px) {
+        
+        /* Portrait mobile — full screen card */
+        @media (max-width: 768px) and (orientation: portrait) {
             .app-container { max-width: none; padding: 0; }
             .player-card {
                 min-height: 100vh;
@@ -228,6 +230,47 @@
                 padding: 24px 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
             }
         }
+        
+        /* Landscape mobile — keep same proportions as portrait, centered card with scroll */
+        @media (max-width: 900px) and (orientation: landscape) {
+            .app-container {
+                max-width: 430px;
+                padding: 12px 16px;
+                justify-content: center;
+                min-height: 100vh;
+                min-height: -webkit-fill-available;
+            }
+            .player-card {
+                min-height: auto;
+                max-height: calc(100vh - 24px);
+                max-height: calc(-webkit-fill-available - 24px);
+                border-radius: 24px;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+                padding: 20px 16px;
+            }
+            .cover-wrapper {
+                aspect-ratio: auto;
+                max-height: 42vh;
+                margin: 0 auto 16px;
+            }
+            .track-info {
+                height: auto;
+                margin: 0 auto 16px;
+                row-gap: 4px;
+            }
+            .track-title { font-size: 22px; height: 40px; }
+            .track-artist { font-size: 15px; height: 22px; }
+            .controls { margin-bottom: 20px; gap: 18px; }
+            .play-btn { width: 72px; height: 72px; }
+            .control-btn { width: 52px; height: 52px; }
+            .progress-container { margin: 0 auto 16px; }
+            .app-header { margin: 0 auto 12px; padding-bottom: 12px; }
+        }
+        
         @media (min-width: 769px) {
             .app-container {
                 justify-content: center;
@@ -430,9 +473,7 @@
         let metadataInterval = null, progressInterval = null, errorTimeout = null;
         let trackData = { duration: 0, elapsed: 0, lastUpdate: 0 };
         let stationsOpen = false, historyOpen = false;
-        // Хранилище истории: { stationId: [ {title, artist, art, time} ] }
         let stationHistories = {};
-        // Флаг загрузки истории для каждой станции
         let stationHistoryLoaded = {};
         let lastCoverUrl = '';
 
@@ -470,7 +511,6 @@
             });
         }
 
-        // Загрузка списка станций
         async function loadStationsFromAPI() {
             try {
                 const ctrl = new AbortController();
@@ -499,7 +539,6 @@
             return false;
         }
 
-        // Фоллбэк станции (хардкод)
         function initFallbackStations() {
             stations = {}; stationHistories = {}; stationHistoryLoaded = {};
             Object.entries(HARDCODED_STREAMS).forEach(([id, st]) => {
@@ -511,7 +550,6 @@
             renderStationsList(); setCoverArt(DEFAULT_COVER_SVG);
         }
 
-        // Загрузка текущего статуса для ВСЕХ станций (PREFETCHING)
         async function loadNowPlayingForAll() {
             const keys = Object.keys(stations);
             if (keys.length === 0) return;
@@ -531,7 +569,6 @@
                     if (data.station?.name) stations[sid].name = data.station.name;
                     if (sid === currentStationKey) setCoverArt(artUrl);
                     
-                    // Загружаем историю из API для каждой станции
                     parseAndSaveHistory(sid, data);
                     stationHistoryLoaded[sid] = true;
 
@@ -541,16 +578,8 @@
             }));
         }
 
-        // Парсинг и сохранение истории из ответа API
         function parseAndSaveHistory(stationId, data) {
-            // AzuraCast может возвращать историю в разных местах:
-            // 1. now_playing.history (для текущей станции)
-            // 2. song_history (для других станций через отдельный эндпоинт)
-            // 3. now_playing.song.history
-            
             let rawHistory = [];
-            
-            // Пробуем разные пути для получения истории
             if (data.now_playing?.history && Array.isArray(data.now_playing.history)) {
                 rawHistory = data.now_playing.history;
             } else if (data.song_history && Array.isArray(data.song_history)) {
@@ -566,14 +595,13 @@
                 const entry = rawHistory[i];
                 const songData = entry.song || entry; 
                 
-                // Вычисляем время
                 let time;
                 if (entry.played_at) {
-                    time = entry.played_at * 1000; // Unix timestamp в миллисекунды
+                    time = entry.played_at * 1000;
                 } else if (entry.timestamp) {
                     time = entry.timestamp * 1000;
                 } else {
-                    time = Date.now() - (i + 1) * 180000; // Fallback: ~3 мин назад
+                    time = Date.now() - (i + 1) * 180000;
                 }
                 
                 parsedHist.push({
@@ -587,7 +615,6 @@
             stationHistories[stationId] = parsedHist;
         }
 
-        // Принудительная загрузка истории для конкретной станции
         async function loadStationHistory(stationId) {
             if (stationHistoryLoaded[stationId]) return;
             
@@ -595,7 +622,6 @@
                 const ctrl = new AbortController();
                 setTimeout(() => ctrl.abort(), 5000);
                 
-                // Запрашиваем историю специально для этой станции
                 const res = await fetch(`${stations[stationId].api}?r=${Math.random()}`, { signal: ctrl.signal });
                 if (!res.ok) return;
                 const data = await res.json();
@@ -603,7 +629,6 @@
                 parseAndSaveHistory(stationId, data);
                 stationHistoryLoaded[stationId] = true;
                 
-                // Если история открыта для этой станции - обновляем UI
                 if (historyOpen && stationId === currentStationKey) {
                     renderCurrentHistory();
                 }
@@ -639,10 +664,9 @@
             setCoverArt(st.art); 
             renderStationsList();
             
-            // Если история открыта - загружаем историю для новой станции и обновляем UI
             if (historyOpen) {
                 renderCurrentHistory();
-                loadStationHistory(key); // Загружаем если ещё не загружена
+                loadStationHistory(key);
             }
             
             fetchMetadata(st.api, true);
@@ -714,7 +738,6 @@
         function togglePlay() { currentStationKey && stations[currentStationKey] && (isPlaying ? stopPlayback() : startPlayback(stations[currentStationKey])); }
         function updatePlayButton() { playIcon.style.display = isPlaying ? 'none' : 'block'; pauseIcon.style.display = isPlaying ? 'block' : 'none'; coverArt.classList.toggle('playing', isPlaying); }
 
-        // Получение метаданных (обновляет историю в реальном времени)
         async function fetchMetadata(apiUrl, force = false) {
             if ((!isPlaying && !force) || !currentStationKey) return;
             try {
@@ -734,7 +757,6 @@
                     trackArtistEl.classList.remove('placeholder');
                     setCoverArt(art);
 
-                    // Обновляем историю в памяти
                     addToStationHistory(currentStationKey, title, artist, art);
                 }
                 
@@ -761,13 +783,11 @@
             progressDuration.textContent = '0:00';
         }
 
-        // Логика добавления трека в историю конкретной станции
         function addToStationHistory(stationId, title, artist, art) {
             if (!stationId || !title || title === 'Unknown Track') return;
             
             const hist = stationHistories[stationId] || [];
             
-            // Не добавляем дубликат
             if (hist.length > 0 && hist[0].title === title && hist[0].artist === artist) return;
             
             hist.unshift({ 
@@ -780,19 +800,16 @@
             if (hist.length > 5) hist.length = 5;
             stationHistories[stationId] = hist;
             
-            // Если история открыта для этой станции - перерисовываем
             if (historyOpen && stationId === currentStationKey) {
                 renderCurrentHistory();
             }
         }
         
-        // Отрисовка истории для ТЕКУЩЕЙ выбранной станции
         function renderCurrentHistory() {
             if (!currentStationKey) return;
             
             const hist = stationHistories[currentStationKey] || [];
             
-            // Очищаем список
             historyList.querySelectorAll('.history-item').forEach(el => el.remove());
             
             if (hist.length === 0) { 
@@ -827,7 +844,6 @@
             if (stationsOpen) closeStations(); 
             historyOpen = true; 
             
-            // Показываем "Загрузка" если история ещё не загружена
             if (!stationHistoryLoaded[currentStationKey] || stationHistories[currentStationKey].length === 0) {
                 historyEmpty.style.display = 'block';
                 historyEmpty.textContent = '🎧 Загрузка истории...';
@@ -838,7 +854,6 @@
             
             historyOverlay.classList.add('open');
             
-            // Загружаем историю с сервера если ещё не загружена
             if (!stationHistoryLoaded[currentStationKey]) {
                 loadStationHistory(currentStationKey);
             }
@@ -899,3 +914,4 @@
     </script>
 </body>
 </html>
+
