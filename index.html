@@ -55,7 +55,7 @@
         .player-card {
             width: 100%; background: #1a1030; backdrop-filter: blur(20px);
             border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.12); border-top: none;
-            padding: 24px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); position: relative; overflow: hidden;
+            padding: 24px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); position: relative; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
         }
         .app-header { width: calc(100% - 18px); margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
         .logo { display: flex; align-items: center; gap: 12px; }
@@ -214,7 +214,20 @@
         .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
         
-        @media (max-height: 700px) { .cover-wrapper { max-width: 100%; } .track-title { font-size: 22px; } .app-container { padding: 16px 12px; } }
+        @media (max-height: 700px) {
+            .cover-wrapper { max-width: min(100%, 44vh); margin-bottom: 16px; }
+            .track-info { height: 70px; grid-template-rows: 42px 22px; margin-bottom: 16px; }
+            .track-title { height: 42px; font-size: 22px; }
+            .track-artist { height: 22px; font-size: 15px; }
+            .progress-container { margin-bottom: 16px; }
+            .controls { margin-bottom: 0; }
+            .app-container { padding: 16px 12px; }
+        }
+        @media (orientation: landscape) and (max-height: 700px) {
+            body { align-items: stretch; }
+            .app-container { min-height: 100dvh; }
+            .player-card { max-height: none; min-height: 100dvh; }
+        }
         @media (max-width: 768px) {
             .app-container { max-width: none; padding: 0; }
             .player-card {
@@ -235,7 +248,7 @@
                 padding-bottom: 28px;
             }
             .player-card {
-                max-height: min(920px, calc(100vh - 56px));
+                max-height: min(920px, calc(100dvh - 56px));
             }
         }
         @media (max-width: 400px) { .play-btn { width: 76px; height: 76px; } .controls { gap: 20px; } }
